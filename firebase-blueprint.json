@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Pegawai dan pengguna sistem BSKJI Kemenperin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "nama": { "type": "string", "description": "Nama lengkap pegawai" },
+        "nip": { "type": "string", "description": "NIP Pegawai" },
+        "email": { "type": "string", "format": "email", "description": "Email dinas pegawai" },
+        "unit_id": { "type": "string", "description": "ID Unit Kerja" },
+        "unit_nama": { "type": "string", "description": "Nama Unit Kerja" },
+        "jabatan": { "type": "string", "description": "Jabatan struktural / fungsional" },
+        "role_id": { "type": "string", "enum": ["peminjam", "koordinator", "kabag_umum", "admin"], "description": "Peran otorisasi" },
+        "status": { "type": "string", "enum": ["Aktif", "Nonaktif"], "description": "Status kepegawaian" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Waktu dibuat" },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Waktu diupdate" }
+      },
+      "required": ["id", "nama", "nip", "email", "unit_id", "unit_nama", "jabatan", "role_id", "status"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Master data ruang rapat di lingkungan BSKJI",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID Ruang Rapat" },
+        "nama_ruang": { "type": "string", "description": "Nama ruangan" },
+        "lokasi": { "type": "string", "description": "Gedung dan lantai" },
+        "kapasitas": { "type": "number", "description": "Kapasitas jumlah orang" },
+        "fasilitas": { "type": "array", "description": "Daftar fasilitas pendukung" },
+        "foto_url": { "type": "string", "description": "URL foto ruangan" },
+        "status": { "type": "string", "enum": ["Tersedia", "Perawatan", "Tidak Aktif"], "description": "Status operasional ruang" }
+      },
+      "required": ["id", "nama_ruang", "lokasi", "kapasitas", "fasilitas", "status"]
+    },
+    "Unit": {
+      "title": "Unit",
+      "description": "Master data unit kerja di lingkungan BSKJI Kemenperin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID Unit Kerja" },
+        "nama_unit": { "type": "string", "description": "Nama unit kerja" },
+        "kode_unit": { "type": "string", "description": "Kode administrasi unit kerja" }
+      },
+      "required": ["id", "nama_unit", "kode_unit"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Pengajuan reservasi ruang rapat BSKJI",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID booking unik" },
+        "nomor_peminjaman": { "type": "string", "description": "Nomor tiket peminjaman resmi format BSKJI" },
+        "user_id": { "type": "string", "description": "ID user pemohon" },
+        "peminjam_nama": { "type": "string", "description": "Nama lengkap pemohon" },
+        "peminjam_nip": { "type": "string", "description": "NIP pemohon" },
+        "unit_id": { "type": "string", "description": "ID unit kerja pemohon" },
+        "unit_nama": { "type": "string", "description": "Nama unit kerja pemohon" },
+        "room_id": { "type": "string", "description": "ID ruang rapat yang dipinjam" },
+        "room_nama": { "type": "string", "description": "Nama ruang rapat yang dipinjam" },
+        "tanggal": { "type": "string", "description": "Tanggal pemakaian (YYYY-MM-DD)" },
+        "jam_mulai": { "type": "string", "description": "Jam mulai pemakaian (HH:mm)" },
+        "jam_selesai": { "type": "string", "description": "Jam selesai pemakaian (HH:mm)" },
+        "keperluan": { "type": "string", "description": "Agenda / topik rapat" },
+        "jumlah_peserta": { "type": "number", "description": "Jumlah perkiraan peserta" },
+        "layout_ruang": { "type": "string", "description": "Tipe susunan meja dan kursi" },
+        "fasilitas_tambahan": { "type": "array", "description": "Fasilitas ekstra yang diminta" },
+        "dokumen_pendukung_url": { "type": "string", "description": "URL dokumen surat undangan/nodin" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "MENUNGGU_VERIFIKASI_KOORDINATOR",
+            "DITOLAK_KOORDINATOR",
+            "MENUNGGU_PERSETUJUAN_KABAG",
+            "DITOLAK_KABAG",
+            "DISETUJUI",
+            "DIBATALKAN",
+            "SELESAI"
+          ],
+          "description": "Status tahapan proses peminjaman"
+        },
+        "approvals": { "type": "array", "description": "Riwayat persetujuan berjenjang" },
+        "check_in": { "type": "object", "description": "Data presensi kedatangan / check-in" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Waktu pengajuan dibuat" },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Waktu pengajuan diperbarui" }
+      },
+      "required": [
+        "id",
+        "nomor_peminjaman",
+        "user_id",
+        "peminjam_nama",
+        "unit_nama",
+        "room_id",
+        "room_nama",
+        "tanggal",
+        "jam_mulai",
+        "jam_selesai",
+        "keperluan",
+        "jumlah_peserta",
+        "status",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "Notifikasi sistem untuk pengguna",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID Notifikasi" },
+        "user_id": { "type": "string", "description": "ID penerima notifikasi" },
+        "booking_id": { "type": "string", "description": "ID booking terkait (opsional)" },
+        "judul": { "type": "string", "description": "Judul notifikasi" },
+        "pesan": { "type": "string", "description": "Isi pesan notifikasi" },
+        "status_baca": { "type": "boolean", "description": "Status sudah dibaca" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Waktu notifikasi" }
+      },
+      "required": ["id", "user_id", "judul", "pesan", "status_baca", "created_at"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Jejak audit aktivitas dan log keamanan sistem",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID Audit Log" },
+        "user_id": { "type": "string", "description": "ID pengguna yang melakukan aksi" },
+        "user_nama": { "type": "string", "description": "Nama pengguna" },
+        "role": { "type": "string", "description": "Peran saat melakukan aksi" },
+        "aktivitas": { "type": "string", "description": "Deskripsi aktivitas" },
+        "booking_id": { "type": "string", "description": "ID booking terkait" },
+        "nomor_peminjaman": { "type": "string", "description": "Nomor peminjaman terkait" },
+        "data_lama": { "type": "string", "description": "Nilai sebelum perubahan" },
+        "data_baru": { "type": "string", "description": "Nilai setelah perubahan" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Waktu kejadian" },
+        "ip_address": { "type": "string", "description": "IP Address pengguna" }
+      },
+      "required": ["id", "user_id", "user_nama", "role", "aktivitas", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Profil dan data otorisasi pegawai"
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Katalog master ruang rapat BSKJI"
+    },
+    "/units/{unitId}": {
+      "schema": { "$ref": "#/entities/Unit" },
+      "description": "Daftar unit kerja internal BSKJI"
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Daftar pengajuan reservasi ruangan"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "Notifikasi pembaruan status dan tindak lanjut"
+    },
+    "/auditLogs/{auditLogId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Log jejak audit keamanan dan perubahan data"
+    }
+  }
+}
