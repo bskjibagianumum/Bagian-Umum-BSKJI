@@ -184,7 +184,14 @@ export class DataService {
             // Merge Firestore records with local users so no newly created user is lost
             const userMap = new Map<string, User>();
             this.users.forEach((u) => userMap.set(u.id, u));
-            list.forEach((u) => userMap.set(u.id, u));
+            list.forEach((u) => {
+              const existing = userMap.get(u.id);
+              userMap.set(u.id, {
+                ...existing,
+                ...u,
+                password: u.password || existing?.password,
+              });
+            });
             this.users = Array.from(userMap.values());
             saveToStorage(STORAGE_KEYS.USERS, this.users);
             this.notify();
@@ -920,10 +927,16 @@ export class DataService {
 
   public async saveUser(userObj: User, adminUser: User): Promise<void> {
     const idx = this.users.findIndex((u) => u.id === userObj.id);
+    const existing = idx >= 0 ? this.users[idx] : null;
+    const finalUser: User = {
+      ...userObj,
+      password: userObj.password || existing?.password || undefined,
+    };
+
     if (idx >= 0) {
-      this.users[idx] = userObj;
+      this.users[idx] = finalUser;
     } else {
-      this.users.push(userObj);
+      this.users.push(finalUser);
     }
     saveToStorage(STORAGE_KEYS.USERS, this.users);
 
@@ -933,7 +946,7 @@ export class DataService {
       user_nama: adminUser.nama,
       role: adminUser.role_id,
       aktivitas: idx >= 0 ? 'Mengubah Data Pengguna' : 'Menambah Pengguna Baru',
-      data_baru: `Nama: ${userObj.nama}, Role: ${userObj.role_id}`,
+      data_baru: `Nama: ${finalUser.nama}, Role: ${finalUser.role_id}`,
       timestamp: new Date().toISOString(),
     };
     this.addAuditLog(auditEntry);
@@ -941,9 +954,9 @@ export class DataService {
     this.notify();
 
     try {
-      await setDoc(doc(db, 'users', userObj.id), userObj);
+      await setDoc(doc(db, 'users', finalUser.id), finalUser);
       await setDoc(doc(db, 'auditLogs', auditEntry.id), auditEntry);
-      console.log('User synced to Firestore:', userObj.id);
+      console.log('User synced to Firestore:', finalUser.id);
     } catch (e) {
       console.warn('Firestore saveUser error:', e);
     }

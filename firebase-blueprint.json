@@ -9,6 +9,7 @@
         "nama": { "type": "string", "description": "Nama lengkap pegawai" },
         "nip": { "type": "string", "description": "NIP Pegawai" },
         "email": { "type": "string", "format": "email", "description": "Email dinas pegawai" },
+        "password": { "type": "string", "description": "Kata sandi otentikasi akun pengguna" },
         "unit_id": { "type": "string", "description": "ID Unit Kerja" },
         "unit_nama": { "type": "string", "description": "Nama Unit Kerja" },
         "jabatan": { "type": "string", "description": "Jabatan struktural / fungsional" },

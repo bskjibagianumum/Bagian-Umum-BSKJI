@@ -17,6 +17,7 @@ export const UsersPage: React.FC = () => {
     nama: '',
     nip: '',
     email: '',
+    password: '',
     unit_id: units[0]?.id || '',
     jabatan: '',
     role_id: 'peminjam' as RoleId,
@@ -34,6 +35,7 @@ export const UsersPage: React.FC = () => {
       nama: '',
       nip: '',
       email: '',
+      password: '',
       unit_id: units[0]?.id || '',
       jabatan: '',
       role_id: 'peminjam',
@@ -63,6 +65,7 @@ export const UsersPage: React.FC = () => {
       nama: formData.nama.trim(),
       nip: cleanNip,
       email: email.toLowerCase(),
+      password: formData.password.trim() || cleanNip,
       unit_id: formData.unit_id,
       unit_nama: selectedUnit ? selectedUnit.nama_unit : 'BSKJI Kemenperin',
       jabatan: formData.jabatan.trim(),
@@ -293,6 +296,17 @@ export const UsersPage: React.FC = () => {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">Password Akun Baru (Opsional)</label>
+                <input
+                  type="password"
+                  placeholder="Kosongkan untuk gunakan NIP sebagai password default"
+                  value={formData.password}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
               </div>
 
               <div className="space-y-1">

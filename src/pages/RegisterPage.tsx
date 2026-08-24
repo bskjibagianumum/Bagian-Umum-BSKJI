@@ -104,6 +104,7 @@ export const RegisterPage: React.FC = () => {
         nama: formData.nama.trim(),
         nip: cleanNip,
         email: `${cleanNip}@kemenperin.go.id`,
+        password: formData.password,
         unit_id: formData.unit_id,
         unit_nama: selectedUnit ? selectedUnit.nama_unit : 'BSKJI Kemenperin',
         jabatan: formData.jabatan.trim(),

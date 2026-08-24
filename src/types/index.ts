@@ -5,6 +5,7 @@ export interface User {
   nama: string;
   nip: string;
   email: string;
+  password?: string;
   unit_id: string;
   unit_nama: string;
   jabatan: string;

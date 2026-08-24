@@ -7,6 +7,7 @@ interface RegisterData {
   nama: string;
   nip: string;
   email: string;
+  password?: string;
   unit_id: string;
   unit_nama: string;
   jabatan: string;
@@ -74,12 +75,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    // Default password check if provided
-    if (password && password.length > 0 && password !== 'password' && password !== '123456' && password !== targetUser.nip) {
-      return {
-        success: false,
-        message: 'Password yang Anda masukkan salah.',
-      };
+    // Password check
+    if (targetUser.password && targetUser.password.length > 0) {
+      // User has explicitly created/saved a password
+      if (!password || password !== targetUser.password) {
+        return {
+          success: false,
+          message: 'Password yang Anda masukkan salah. Silakan coba lagi.',
+        };
+      }
+    } else if (password && password.length > 0) {
+      // Legacy demo users fallback check
+      const validDefaults = ['password', '123456', 'admin123', targetUser.nip];
+      if (!validDefaults.includes(password)) {
+        return {
+          success: false,
+          message: 'Password yang Anda masukkan salah.',
+        };
+      }
     }
 
     setCurrentUser(targetUser);
