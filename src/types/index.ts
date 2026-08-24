@@ -19,6 +19,7 @@ export interface Unit {
   nama_unit: string;
   kode_unit: string;
   kepala_unit?: string;
+  keterangan?: string;
 }
 
 export interface Room {

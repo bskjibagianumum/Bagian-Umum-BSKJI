@@ -17,6 +17,8 @@ export const RoomsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [roomToEdit, setRoomToEdit] = useState<Room | null>(null);
 
+  if (!currentUser) return null;
+
   const canManage = currentUser.role_id === 'admin' || currentUser.role_id === 'koordinator';
 
   const filteredRooms = rooms.filter((r) => {

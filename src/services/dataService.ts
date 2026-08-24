@@ -132,7 +132,7 @@ export class DataService {
             saveToStorage(STORAGE_KEYS.BOOKINGS, this.bookings);
             this.notify();
           } else if (!this.isFirestoreInitialized) {
-            this.seedFirestoreInitialData();
+            this.syncAllToFirestore();
           }
         },
         (error) => {
@@ -181,9 +181,15 @@ export class DataService {
           if (!snapshot.empty) {
             const list: User[] = [];
             snapshot.forEach((d) => list.push(d.data() as User));
-            this.users = list;
+            // Merge Firestore records with local users so no newly created user is lost
+            const userMap = new Map<string, User>();
+            this.users.forEach((u) => userMap.set(u.id, u));
+            list.forEach((u) => userMap.set(u.id, u));
+            this.users = Array.from(userMap.values());
             saveToStorage(STORAGE_KEYS.USERS, this.users);
             this.notify();
+          } else if (!this.isFirestoreInitialized) {
+            this.syncAllToFirestore();
           }
         },
         (error) => {
@@ -230,41 +236,51 @@ export class DataService {
       );
 
       this.isFirestoreInitialized = true;
+
+      // Auto-trigger sync to Firestore on startup to ensure all existing records are persisted
+      setTimeout(() => {
+        this.syncAllToFirestore();
+      }, 1500);
     } catch (e) {
       console.warn('Could not initialize Firestore listeners:', e);
     }
   }
 
   /**
-   * Seed Firestore collections with initial baseline data if empty
+   * Sync all local data to Firebase Firestore
    */
-  private async seedFirestoreInitialData(): Promise<void> {
+  public async syncAllToFirestore(): Promise<{ success: boolean; message: string }> {
     try {
-      const batch = writeBatch(db);
+      // 1. Sync Bookings
+      for (const b of this.bookings) {
+        await setDoc(doc(db, 'bookings', b.id), b);
+      }
+      // 2. Sync Rooms
+      for (const r of this.rooms) {
+        await setDoc(doc(db, 'rooms', r.id), r);
+      }
+      // 3. Sync Units
+      for (const u of this.units) {
+        await setDoc(doc(db, 'units', u.id), u);
+      }
+      // 4. Sync Users
+      for (const usr of this.users) {
+        await setDoc(doc(db, 'users', usr.id), usr);
+      }
+      // 5. Sync Notifications
+      for (const n of this.notifications) {
+        await setDoc(doc(db, 'notifications', n.id), n);
+      }
+      // 6. Sync Audit Logs
+      for (const a of this.auditLogs) {
+        await setDoc(doc(db, 'auditLogs', a.id), a);
+      }
 
-      INITIAL_BOOKINGS.forEach((b) => {
-        batch.set(doc(db, 'bookings', b.id), b);
-      });
-      INITIAL_ROOMS.forEach((r) => {
-        batch.set(doc(db, 'rooms', r.id), r);
-      });
-      INITIAL_UNITS.forEach((u) => {
-        batch.set(doc(db, 'units', u.id), u);
-      });
-      DEMO_USERS.forEach((usr) => {
-        batch.set(doc(db, 'users', usr.id), usr);
-      });
-      INITIAL_NOTIFICATIONS.forEach((n) => {
-        batch.set(doc(db, 'notifications', n.id), n);
-      });
-      INITIAL_AUDIT_LOGS.forEach((a) => {
-        batch.set(doc(db, 'auditLogs', a.id), a);
-      });
-
-      await batch.commit();
-      console.log('Initial data successfully seeded to Firestore.');
-    } catch (err) {
-      console.warn('Seeding Firestore initial data failed:', err);
+      console.log('Semua data berhasil disinkronkan ke Firebase Firestore.');
+      return { success: true, message: 'Semua data berhasil disinkronkan ke Firebase Firestore!' };
+    } catch (err: any) {
+      console.error('Failed to sync all data to Firebase:', err);
+      return { success: false, message: err?.message || 'Gagal sinkronisasi data ke Firebase.' };
     }
   }
 
@@ -349,6 +365,62 @@ export class DataService {
   }
 
   // --- BOOKING OPERATIONS ---
+  public updateBooking(booking: Booking, user?: User): void {
+    const idx = this.bookings.findIndex((b) => b.id === booking.id);
+    const updatedBooking: Booking = {
+      ...booking,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (idx >= 0) {
+      this.bookings[idx] = updatedBooking;
+    } else {
+      this.bookings = [updatedBooking, ...this.bookings];
+    }
+    saveToStorage(STORAGE_KEYS.BOOKINGS, this.bookings);
+
+    if (user) {
+      this.addAuditLog({
+        id: `aud_${Date.now()}`,
+        user_id: user.id,
+        user_nama: user.nama,
+        role: user.role_id,
+        aktivitas: 'Memperbarui Data Peminjaman Ruang',
+        booking_id: booking.id,
+        nomor_peminjaman: booking.nomor_peminjaman,
+        data_lama: '-',
+        data_baru: `Ruang: ${booking.room_nama}, Tanggal: ${booking.tanggal}, Jam: ${booking.jam_mulai}-${booking.jam_selesai}`,
+        timestamp: new Date().toISOString(),
+        ip_address: '10.14.22.100',
+      });
+    }
+
+    this.notify();
+
+    // 2. Persist to Firestore
+    try {
+      setDoc(doc(db, 'bookings', booking.id), updatedBooking)
+        .then(() => console.log(`Firestore booking ${booking.id} synced.`))
+        .catch((err) => console.warn('Firestore setDoc booking error:', err));
+    } catch (e) {
+      console.warn('Firestore sync error:', e);
+    }
+
+    // 3. Persist to server API
+    fetch(`/api/bookings/${booking.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updatedBooking, user }),
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data) {
+          this.syncFromPayload(json.data);
+        }
+      })
+      .catch((err) => console.error('Error persisting updated booking to server:', err));
+  }
+
   public addBooking(booking: Booking, user: User): void {
     // 1. Update local immediately
     this.bookings = [booking, ...this.bookings];
@@ -772,9 +844,9 @@ export class DataService {
   }
 
   // --- USER OPERATIONS ---
-  public registerUser(
+  public async registerUser(
     newUser: Omit<User, 'id' | 'status' | 'created_at' | 'updated_at'> & { id?: string }
-  ): { success: boolean; message?: string; user?: User } {
+  ): Promise<{ success: boolean; message?: string; user?: User }> {
     const cleanNip = newUser.nip.trim();
     const cleanEmail = newUser.email.trim().toLowerCase();
 
@@ -803,7 +875,7 @@ export class DataService {
     this.users.push(createdUser);
     saveToStorage(STORAGE_KEYS.USERS, this.users);
 
-    this.addAuditLog({
+    const auditEntry = {
       id: `aud_${Date.now()}`,
       user_id: createdUser.id,
       user_nama: createdUser.nama,
@@ -811,36 +883,42 @@ export class DataService {
       aktivitas: 'Pendaftaran Akun Mandiri Pegawai',
       data_baru: `Nama: ${createdUser.nama}, NIP: ${createdUser.nip}, Role: ${createdUser.role_id}`,
       timestamp: new Date().toISOString(),
-    });
+    };
+    this.addAuditLog(auditEntry);
 
     this.notify();
 
+    // 1. Direct Persist to Firebase Firestore
     try {
-      setDoc(doc(db, 'users', createdUser.id), createdUser).catch((err) =>
-        console.warn('Firestore registerUser error:', err)
-      );
+      await setDoc(doc(db, 'users', createdUser.id), createdUser);
+      await setDoc(doc(db, 'auditLogs', auditEntry.id), auditEntry);
+      console.log('Akun pegawai baru berhasil disimpan ke Firestore:', createdUser.id);
     } catch (e) {
       console.warn('Firestore registerUser error:', e);
     }
 
-    // Persist to server
-    fetch('/api/users/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: createdUser }),
-    })
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.data) {
-          this.syncFromPayload(json.data);
-        }
+    // 2. Persist to server API in background
+    try {
+      fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: createdUser }),
       })
-      .catch((err) => console.error('Error registering user on server:', err));
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data) {
+            this.syncFromPayload(json.data);
+          }
+        })
+        .catch((err) => console.error('Error registering user on server:', err));
+    } catch (err) {
+      console.warn('Server registration error:', err);
+    }
 
     return { success: true, user: createdUser };
   }
 
-  public saveUser(userObj: User, adminUser: User): void {
+  public async saveUser(userObj: User, adminUser: User): Promise<void> {
     const idx = this.users.findIndex((u) => u.id === userObj.id);
     if (idx >= 0) {
       this.users[idx] = userObj;
@@ -849,7 +927,7 @@ export class DataService {
     }
     saveToStorage(STORAGE_KEYS.USERS, this.users);
 
-    this.addAuditLog({
+    const auditEntry = {
       id: `aud_${Date.now()}`,
       user_id: adminUser.id,
       user_nama: adminUser.nama,
@@ -857,14 +935,15 @@ export class DataService {
       aktivitas: idx >= 0 ? 'Mengubah Data Pengguna' : 'Menambah Pengguna Baru',
       data_baru: `Nama: ${userObj.nama}, Role: ${userObj.role_id}`,
       timestamp: new Date().toISOString(),
-    });
+    };
+    this.addAuditLog(auditEntry);
 
     this.notify();
 
     try {
-      setDoc(doc(db, 'users', userObj.id), userObj).catch((err) =>
-        console.warn('Firestore saveUser error:', err)
-      );
+      await setDoc(doc(db, 'users', userObj.id), userObj);
+      await setDoc(doc(db, 'auditLogs', auditEntry.id), auditEntry);
+      console.log('User synced to Firestore:', userObj.id);
     } catch (e) {
       console.warn('Firestore saveUser error:', e);
     }
@@ -1016,9 +1095,9 @@ export class DataService {
 
     // Reset Firestore collections with fresh baseline
     try {
-      await this.seedFirestoreInitialData();
+      await this.syncAllToFirestore();
     } catch (err) {
-      console.warn('Firestore reset seeding error:', err);
+      console.warn('Firestore reset sync error:', err);
     }
 
     try {

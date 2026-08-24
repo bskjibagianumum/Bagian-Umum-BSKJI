@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/common/Badge';
 import { BookingTimeline } from '../components/booking/BookingTimeline';
 import { ApprovalActionModal } from '../components/approval/ApprovalActionModal';
+import { EditBookingModal } from '../components/booking/EditBookingModal';
 import {
   FileText,
   Calendar,
@@ -18,6 +19,7 @@ import {
   XCircle,
   ShieldCheck,
   Building,
+  Edit3,
 } from 'lucide-react';
 import { formatIndonesianDate } from '../utils/bookingUtils';
 
@@ -27,6 +29,7 @@ export const BookingDetailPage: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [approvalModalState, setApprovalModalState] = useState<{
     isOpen: boolean;
     actionType: 'APPROVE' | 'REJECT';
@@ -38,6 +41,8 @@ export const BookingDetailPage: React.FC = () => {
   });
 
   const booking = bookings.find((b) => b.id === id);
+
+  if (!currentUser) return null;
 
   if (!booking) {
     return (
@@ -52,6 +57,12 @@ export const BookingDetailPage: React.FC = () => {
       </div>
     );
   }
+
+  // Permissions to edit booking data
+  const canEdit =
+    currentUser.role_id === 'admin' ||
+    currentUser.role_id === 'koordinator' ||
+    (currentUser.id === booking.user_id && booking.status === 'MENUNGGU_PERSETUJUAN_KOORDINATOR');
 
   // Check if current user is active approver for this booking's current status
   const canApproveKoordinator =
@@ -75,16 +86,25 @@ export const BookingDetailPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
-          className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5"
+          className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" /> Kembali
         </button>
 
         <div className="flex items-center gap-2">
+          {canEdit && (
+            <button
+              onClick={() => setIsEditOpen(true)}
+              className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Edit3 className="w-4 h-4 text-blue-600" /> Ubah Data Peminjaman
+            </button>
+          )}
+
           {booking.status === 'DISETUJUI' && (
             <button
               onClick={() => navigate(`/bukti/${booking.id}`)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="w-4 h-4" /> Cetak Bukti Peminjaman
             </button>
@@ -270,6 +290,13 @@ export const BookingDetailPage: React.FC = () => {
         booking={booking}
         actionType={approvalModalState.actionType}
         level={approvalModalState.level}
+      />
+
+      {/* Edit Booking Modal */}
+      <EditBookingModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        booking={booking}
       />
     </div>
   );

@@ -19,7 +19,7 @@ export const CalendarView: React.FC = () => {
 
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('ALL');
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 7, 12)); // August 2026 default
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date()); // Realtime today date default
 
   // Filter bookings by selected room
   const filteredBookings = bookings.filter((b) => {
@@ -97,14 +97,14 @@ export const CalendarView: React.FC = () => {
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setCurrentDate(new Date(2026, 7, 12))}
-              className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+              onClick={() => setCurrentDate(new Date())}
+              className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
             >
               Hari Ini
             </button>
             <button
               onClick={handleNext}
-              className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -134,7 +134,7 @@ export const CalendarView: React.FC = () => {
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
             <button
               onClick={() => setViewMode('month')}
-              className={`px-3 py-1 rounded-lg transition-colors ${
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 viewMode === 'month' ? 'bg-white text-blue-900 shadow-xs' : 'text-slate-600'
               }`}
             >
@@ -142,7 +142,7 @@ export const CalendarView: React.FC = () => {
             </button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1 rounded-lg transition-colors ${
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 viewMode === 'week' ? 'bg-white text-blue-900 shadow-xs' : 'text-slate-600'
               }`}
             >
@@ -150,7 +150,7 @@ export const CalendarView: React.FC = () => {
             </button>
             <button
               onClick={() => setViewMode('day')}
-              className={`px-3 py-1 rounded-lg transition-colors ${
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 viewMode === 'day' ? 'bg-white text-blue-900 shadow-xs' : 'text-slate-600'
               }`}
             >
@@ -187,7 +187,11 @@ export const CalendarView: React.FC = () => {
 
               // Get bookings on this date
               const dayBookings = filteredBookings.filter((b) => b.tanggal === dateStr);
-              const isToday = dayNum === 12 && month === 7 && year === 2026;
+              const todayObj = new Date();
+              const isToday =
+                dayNum === todayObj.getDate() &&
+                month === todayObj.getMonth() &&
+                year === todayObj.getFullYear();
 
               return (
                 <div

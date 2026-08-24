@@ -50,6 +50,8 @@ interface AppContextType {
       'id' | 'nomor_peminjaman' | 'status' | 'created_at' | 'updated_at' | 'approvals'
     >
   ) => Booking;
+  updateBooking: (booking: Booking) => void;
+  syncToFirebase: () => Promise<boolean>;
   approveBooking: (bookingId: string, catatan: string, level: 'KOORDINATOR' | 'KABAG') => void;
   rejectBooking: (bookingId: string, catatan: string, level: 'KOORDINATOR' | 'KABAG') => void;
   cancelBooking: (bookingId: string, alasan: string) => void;
@@ -150,6 +152,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return newBooking;
+  };
+
+  const updateBooking = (booking: Booking) => {
+    try {
+      dataService.updateBooking(booking, currentUser);
+      addToast(
+        'success',
+        'Data Peminjaman Diperbarui',
+        `Perubahan data pengajuan ${booking.nomor_peminjaman} berhasil disimpan dan disinkronkan ke Firebase.`
+      );
+    } catch (e: any) {
+      addToast('error', 'Gagal Memperbarui', e.message || 'Terjadi kesalahan sistem.');
+    }
+  };
+
+  const syncToFirebase = async (): Promise<boolean> => {
+    try {
+      const res = await dataService.syncAllToFirestore();
+      if (res.success) {
+        addToast('success', 'Sinkronisasi Berhasil', res.message);
+        return true;
+      } else {
+        addToast('error', 'Sinkronisasi Gagal', res.message);
+        return false;
+      }
+    } catch (e: any) {
+      addToast('error', 'Gagal Sinkronisasi', e.message || 'Terjadi kesalahan sinkronisasi.');
+      return false;
+    }
   };
 
   const approveBooking = (
@@ -291,6 +322,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         removeToast,
 
         createBooking,
+        updateBooking,
+        syncToFirebase,
         approveBooking,
         rejectBooking,
         cancelBooking,

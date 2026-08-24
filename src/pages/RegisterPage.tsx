@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { DataService } from '../services/dataService';
 import { RoleId } from '../types';
@@ -23,12 +23,19 @@ export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const dataService = DataService.getInstance();
 
-  const units = dataService.getUnits();
+  const [units, setUnits] = useState(() => dataService.getUnits());
+
+  useEffect(() => {
+    const unsub = dataService.subscribe(() => {
+      setUnits(dataService.getUnits());
+    });
+    return unsub;
+  }, [dataService]);
 
   const [formData, setFormData] = useState({
     nama: '',
     nip: '',
-    unit_id: units[0]?.id || '',
+    unit_id: units[0]?.id || 'unit_sekretariat',
     jabatan: '',
     role_id: 'peminjam' as RoleId,
     password: '',
@@ -46,7 +53,7 @@ export const RegisterPage: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -92,25 +99,30 @@ export const RegisterPage: React.FC = () => {
 
     const selectedUnit = units.find((u) => u.id === formData.unit_id);
 
-    const res = register({
-      nama: formData.nama.trim(),
-      nip: cleanNip,
-      email: `${cleanNip}@kemenperin.go.id`,
-      unit_id: formData.unit_id,
-      unit_nama: selectedUnit ? selectedUnit.nama_unit : 'BSKJI Kemenperin',
-      jabatan: formData.jabatan.trim(),
-      role_id: formData.role_id,
-    });
+    try {
+      const res = await register({
+        nama: formData.nama.trim(),
+        nip: cleanNip,
+        email: `${cleanNip}@kemenperin.go.id`,
+        unit_id: formData.unit_id,
+        unit_nama: selectedUnit ? selectedUnit.nama_unit : 'BSKJI Kemenperin',
+        jabatan: formData.jabatan.trim(),
+        role_id: formData.role_id,
+      });
 
-    setIsSubmitting(false);
+      setIsSubmitting(false);
 
-    if (res.success) {
-      setSuccessMsg('Pendaftaran akun berhasil! Mengalihkan ke Dashboard...');
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1200);
-    } else {
-      setErrorMsg(res.message || 'Gagal mendaftarkan akun baru.');
+      if (res.success) {
+        setSuccessMsg('Pendaftaran akun berhasil dan tersimpan di database! Mengalihkan ke Dashboard...');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1200);
+      } else {
+        setErrorMsg(res.message || 'Gagal mendaftarkan akun baru.');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMsg(err?.message || 'Terjadi kesalahan sistem saat mendaftarkan akun.');
     }
   };
 

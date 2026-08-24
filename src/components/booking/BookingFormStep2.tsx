@@ -1,5 +1,5 @@
 import React from 'react';
-import { calculateDuration } from '../../utils/bookingUtils';
+import { calculateDuration, getTodayDateString } from '../../utils/bookingUtils';
 import {
   FileText,
   Calendar,
@@ -30,6 +30,7 @@ export const BookingFormStep2: React.FC<Step2Props> = ({
   errors,
 }) => {
   const duration = calculateDuration(formData.jam_mulai, formData.jam_selesai);
+  const minDate = getTodayDateString();
 
   return (
     <div className="space-y-4">
@@ -68,6 +69,7 @@ export const BookingFormStep2: React.FC<Step2Props> = ({
             <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="date"
+              min={minDate}
               value={formData.tanggal}
               onChange={(e) => onChange('tanggal', e.target.value)}
               className={`w-full pl-9 pr-3 py-2.5 text-xs bg-white border rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all ${
@@ -75,6 +77,9 @@ export const BookingFormStep2: React.FC<Step2Props> = ({
               }`}
             />
           </div>
+          <p className="text-[10px] text-slate-400 mt-1">
+            *Tidak dapat memilih tanggal lampau (minimal hari ini: {minDate})
+          </p>
           {errors.tanggal && (
             <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" /> {errors.tanggal}

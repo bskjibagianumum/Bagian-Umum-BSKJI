@@ -26,6 +26,8 @@ export const DashboardPage: React.FC = () => {
   const { bookings, rooms, users } = useApp();
   const navigate = useNavigate();
 
+  if (!currentUser) return null;
+
   const role = currentUser.role_id;
 
   // Filter bookings for peminjam

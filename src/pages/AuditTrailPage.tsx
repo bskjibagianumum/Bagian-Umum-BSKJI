@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { History, Search, ShieldCheck } from 'lucide-react';
+import { formatIndonesianDateTime } from '../utils/bookingUtils';
 
 export const AuditTrailPage: React.FC = () => {
-  const { auditTrail } = useApp();
+  const { auditLogs } = useApp();
   const [search, setSearch] = useState('');
 
-  const filteredLogs = auditTrail.filter(
+  const logsList = auditLogs || [];
+
+  const filteredLogs = logsList.filter(
     (log) =>
-      log.user_nama.toLowerCase().includes(search.toLowerCase()) ||
-      log.aksi.toLowerCase().includes(search.toLowerCase()) ||
-      log.modul.toLowerCase().includes(search.toLowerCase()) ||
-      log.keterangan.toLowerCase().includes(search.toLowerCase())
+      (log.user_nama && log.user_nama.toLowerCase().includes(search.toLowerCase())) ||
+      (log.aktivitas && log.aktivitas.toLowerCase().includes(search.toLowerCase())) ||
+      (log.nomor_peminjaman && log.nomor_peminjaman.toLowerCase().includes(search.toLowerCase())) ||
+      (log.role && log.role.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -33,7 +36,7 @@ export const AuditTrailPage: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari nama pengguna, aksi, atau keterangan log..."
+            placeholder="Cari nama pengguna, aktivitas, atau nomor peminjaman..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -48,30 +51,42 @@ export const AuditTrailPage: React.FC = () => {
               <tr>
                 <th className="p-3.5">Waktu / Timestamp</th>
                 <th className="p-3.5">Pengguna</th>
-                <th className="p-3.5">Aksi / Event</th>
-                <th className="p-3.5">Modul</th>
-                <th className="p-3.5">Keterangan / Details</th>
+                <th className="p-3.5">Aktivitas / Event</th>
+                <th className="p-3.5">No. Peminjaman</th>
+                <th className="p-3.5">Detail Perubahan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3.5 font-mono text-[11px] text-slate-500">
-                    {new Date(log.created_at).toLocaleString('id-ID')}
+              {filteredLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-xs text-slate-400">
+                    Tidak ada catatan log aktivitas yang cocok.
                   </td>
-                  <td className="p-3.5">
-                    <strong className="text-slate-900 block">{log.user_nama}</strong>
-                    <span className="text-[10px] text-slate-400">Role: {log.user_role}</span>
-                  </td>
-                  <td className="p-3.5 font-bold text-blue-800">{log.aksi}</td>
-                  <td className="p-3.5">
-                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-mono text-[10px]">
-                      {log.modul}
-                    </span>
-                  </td>
-                  <td className="p-3.5 text-slate-700">{log.keterangan}</td>
                 </tr>
-              ))}
+              ) : (
+                filteredLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3.5 font-mono text-[11px] text-slate-500">
+                      {log.timestamp ? formatIndonesianDateTime(log.timestamp) : '-'}
+                    </td>
+                    <td className="p-3.5">
+                      <strong className="text-slate-900 block">{log.user_nama}</strong>
+                      <span className="text-[10px] text-slate-400">Role: {log.role}</span>
+                    </td>
+                    <td className="p-3.5 font-bold text-blue-800">{log.aktivitas}</td>
+                    <td className="p-3.5">
+                      {log.nomor_peminjaman ? (
+                        <span className="bg-slate-100 text-blue-700 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold">
+                          {log.nomor_peminjaman}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-[10px]">-</span>
+                      )}
+                    </td>
+                    <td className="p-3.5 text-slate-700">{log.data_baru || log.data_lama || '-'}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

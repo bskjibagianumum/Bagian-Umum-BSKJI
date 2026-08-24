@@ -28,6 +28,8 @@ export const BookingsListPage: React.FC = () => {
   const [selectedRoom, setSelectedRoom] = useState<string>('ALL');
   const [cancelModalBookingId, setCancelModalBookingId] = useState<string | null>(null);
 
+  if (!currentUser) return null;
+
   // Filter bookings
   const filteredBookings = bookings.filter((b) => {
     // Role peminjam strictly only sees their own bookings

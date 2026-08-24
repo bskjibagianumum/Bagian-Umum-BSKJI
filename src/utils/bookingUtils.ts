@@ -40,6 +40,20 @@ export const LOCKING_STATUSES = [
   'DISETUJUI',
 ];
 
+export function getTodayDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function isBackDate(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const today = getTodayDateString();
+  return dateStr < today;
+}
+
 /**
  * Validates anti-double booking for a target room at date & time
  */
@@ -61,7 +75,16 @@ export function checkRoomAvailability(
     };
   }
 
-  // 2. Kapasitas >= Jumlah Peserta
+  // 2. Disallow back date
+  if (isBackDate(date)) {
+    return {
+      room,
+      is_available: false,
+      reason: 'Tanggal peminjaman tidak boleh tanggal yang telah berlalu (back date).',
+    };
+  }
+
+  // 3. Kapasitas >= Jumlah Peserta
   if (room.kapasitas < participants) {
     return {
       room,

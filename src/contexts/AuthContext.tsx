@@ -19,7 +19,7 @@ interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
   login: (nipOrEmail: string, password?: string) => { success: boolean; message?: string };
-  register: (userData: RegisterData) => { success: boolean; message?: string };
+  register: (userData: RegisterData) => Promise<{ success: boolean; message?: string }>;
   loginAsUser: (userId: string) => void;
   switchRole: (roleId: RoleId) => void;
   logout: () => void;
@@ -32,8 +32,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const dataService = DataService.getInstance();
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    // Clear legacy active user storage so app always opens at login page
-    localStorage.removeItem('bskji_active_user');
+    try {
+      const saved = localStorage.getItem('bskji_active_user');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Error restoring active user session:', e);
+    }
     return null;
   });
 
@@ -80,8 +86,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  const register = (userData: RegisterData): { success: boolean; message?: string } => {
-    const res = dataService.registerUser(userData);
+  const register = async (userData: RegisterData): Promise<{ success: boolean; message?: string }> => {
+    const res = await dataService.registerUser(userData);
     if (res.success && res.user) {
       setCurrentUser(res.user);
       return { success: true };

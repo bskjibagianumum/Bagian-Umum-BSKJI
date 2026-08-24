@@ -19,8 +19,20 @@ import { formatIndonesianDate } from '../utils/bookingUtils';
 export const ReportsPage: React.FC = () => {
   const { bookings, rooms, units } = useApp();
 
-  const [startDate, setStartDate] = useState('2026-08-01');
-  const [endDate, setEndDate] = useState('2026-08-31');
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const mStr = String(m + 1).padStart(2, '0');
+    return `${y}-${mStr}-${String(lastDay).padStart(2, '0')}`;
+  });
   const [selectedRoom, setSelectedRoom] = useState('ALL');
   const [selectedUnit, setSelectedUnit] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');

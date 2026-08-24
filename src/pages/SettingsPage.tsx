@@ -6,12 +6,21 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 
 export const SettingsPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const { resetDemoData, bookings, rooms, units, users, addToast } = useApp();
+  const { resetDemoData, syncToFirebase, bookings, rooms, units, users, addToast } = useApp();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  if (!currentUser) return null;
 
   // Role Gate: Only Admin can access Settings & Reset Demo Data
   const isAdmin = currentUser.role_id === 'admin';
+
+  const handleSyncFirebase = async () => {
+    setIsSyncing(true);
+    await syncToFirebase();
+    setIsSyncing(false);
+  };
 
   const handleConfirmReset = async () => {
     try {
@@ -113,6 +122,30 @@ export const SettingsPage: React.FC = () => {
         <div className="flex items-center gap-2 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200/70 p-3 rounded-xl">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>Server terhubung dan tersinkronisasi online real-time untuk seluruh pengguna dan perangkat PC.</span>
+        </div>
+      </div>
+
+      {/* Sinkronisasi Cloud Firebase */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="space-y-1">
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <Server className="w-4 h-4 text-blue-600" /> Sinkronisasi Cloud Firestore (Firebase)
+          </h3>
+          <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+            Pastikan seluruh data peminjaman, ruangan, unit kerja, notifikasi, dan log audit tersimpan secara permanen di database Firebase Firestore (<code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[11px] text-blue-700">sipr-5b16e</code>).
+          </p>
+        </div>
+
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={handleSyncFirebase}
+            disabled={isSyncing}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Menyinkronkan ke Firebase...' : 'Sinkronkan Semua Data ke Database Firebase Sekarang'}
+          </button>
         </div>
       </div>
 

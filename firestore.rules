@@ -2,66 +2,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'setiyo.jatmiko.777@gmail.com' ||
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role_id == 'admin'
-      );
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    // Test doc for connection check
+    match /test/{docId} {
+      allow read, write: if true;
     }
 
     // Users Collection
     match /users/{userId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Rooms Master Collection
     match /rooms/{roomId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Units Master Collection
     match /units/{unitId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Bookings Collection
     match /bookings/{bookingId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Notifications Collection
     match /notifications/{notificationId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Audit Logs Collection
     match /auditLogs/{auditLogId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
   }
 }
+

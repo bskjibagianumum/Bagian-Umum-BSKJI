@@ -172,6 +172,46 @@ async function startServer() {
     res.json({ success: true, booking, data: db });
   });
 
+  // BOOKINGS: UPDATE GENERAL DETAILS
+  app.put("/api/bookings/:id", (req, res) => {
+    const bookingId = req.params.id;
+    const { updatedBooking, user } = req.body as { updatedBooking: Booking; user: User };
+
+    if (!updatedBooking) {
+      return res.status(400).json({ success: false, message: "Missing updated booking payload" });
+    }
+
+    const idx = db.bookings.findIndex((b) => b.id === bookingId);
+    const finalBooking = { ...updatedBooking, updated_at: new Date().toISOString() };
+    if (idx === -1) {
+      db.bookings = [finalBooking, ...db.bookings];
+    } else {
+      db.bookings[idx] = finalBooking;
+    }
+
+    if (user) {
+      db.auditLogs = [
+        {
+          id: `aud_${Date.now()}`,
+          user_id: user.id,
+          user_nama: user.nama,
+          role: user.role_id,
+          aktivitas: "Memperbarui Data Peminjaman Ruang",
+          booking_id: bookingId,
+          nomor_peminjaman: finalBooking.nomor_peminjaman,
+          data_lama: "-",
+          data_baru: `Ruang: ${finalBooking.room_nama}, Tanggal: ${finalBooking.tanggal}, Jam: ${finalBooking.jam_mulai}-${finalBooking.jam_selesai}`,
+          timestamp: new Date().toISOString(),
+          ip_address: req.ip || "10.14.22.100",
+        },
+        ...db.auditLogs,
+      ];
+    }
+
+    saveDatabase(db);
+    res.json({ success: true, booking: finalBooking, data: db });
+  });
+
   // BOOKINGS: UPDATE STATUS (APPROVAL / REJECTION)
   app.put("/api/bookings/:id/status", (req, res) => {
     const bookingId = req.params.id;

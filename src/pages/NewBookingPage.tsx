@@ -6,7 +6,7 @@ import { BookingFormStep2, Step2FormData } from '../components/booking/BookingFo
 import { BookingFormStep3 } from '../components/booking/BookingFormStep3';
 import { UserCheck, FileText, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { calculateDuration } from '../utils/bookingUtils';
+import { calculateDuration, getTodayDateString, isBackDate } from '../utils/bookingUtils';
 
 export const NewBookingPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -15,18 +15,20 @@ export const NewBookingPage: React.FC = () => {
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
-  // Form State
-  const [formData, setFormData] = useState<Step2FormData>({
+  // Form State initialized with real-time today date
+  const [formData, setFormData] = useState<Step2FormData>(() => ({
     keperluan: '',
-    tanggal: '2026-08-14', // default future date
+    tanggal: getTodayDateString(),
     jam_mulai: '09:00',
     jam_selesai: '11:30',
     jumlah_peserta: 15,
     keterangan: '',
-  });
+  }));
 
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  if (!currentUser) return null;
 
   const handleFieldChange = (field: keyof Step2FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -40,6 +42,8 @@ export const NewBookingPage: React.FC = () => {
     }
     if (!formData.tanggal) {
       errs.tanggal = 'Tanggal rapat wajib dipilih.';
+    } else if (isBackDate(formData.tanggal)) {
+      errs.tanggal = 'Tanggal peminjaman tidak boleh tanggal lampau (back date). Minimal adalah hari ini.';
     }
     if (!formData.jam_mulai) {
       errs.jam_mulai = 'Jam mulai wajib diisi.';
@@ -73,7 +77,7 @@ export const NewBookingPage: React.FC = () => {
   };
 
   const handleSubmitBooking = () => {
-    if (!selectedRoomId) return;
+    if (!selectedRoomId || isBackDate(formData.tanggal)) return;
 
     const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
     if (!selectedRoom) return;

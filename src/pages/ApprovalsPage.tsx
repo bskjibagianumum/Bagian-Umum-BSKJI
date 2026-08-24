@@ -12,6 +12,8 @@ export const ApprovalsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
+  if (!currentUser) return null;
+
   const role = currentUser.role_id;
 
   // Filter pending queue matching current role
