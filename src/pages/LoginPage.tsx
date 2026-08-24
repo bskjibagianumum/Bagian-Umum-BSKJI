@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowRight, Lock, User as UserIcon, AlertCircle, UserPlus } from 'lucide-react';
+import { ArrowRight, Lock, User as UserIcon, AlertCircle, UserPlus, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { KemenperinLogo } from '../components/common/KemenperinLogo';
 
@@ -16,9 +16,11 @@ export const LoginPage: React.FC = () => {
 
   const [nipOrEmail, setNipOrEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleFormLogin = (e: React.FormEvent) => {
+  const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -27,11 +29,25 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    const res = login(nipOrEmail, password);
-    if (res.success) {
-      navigate('/dashboard');
-    } else {
-      setErrorMsg(res.message || 'Gagal melakukan otentikasi.');
+    if (!password) {
+      setErrorMsg('Silahkan masukkan password akun.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const res = await login(nipOrEmail, password);
+      setIsSubmitting(false);
+
+      if (res.success) {
+        navigate('/dashboard');
+      } else {
+        setErrorMsg(res.message || 'Gagal melakukan otentikasi. Periksa kembali NIP/Email dan password Anda.');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMsg(err?.message || 'Terjadi gangguan saat memproses login. Silakan coba lagi.');
     }
   };
 
@@ -81,34 +97,61 @@ export const LoginPage: React.FC = () => {
                   placeholder="Masukkan NIP atau Email"
                   value={nipOrEmail}
                   onChange={(e) => setNipOrEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono disabled:opacity-50"
                 />
                 <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                  Password
+                </label>
+              </div>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Masukkan Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-11 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:opacity-50"
                 />
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-200 focus:outline-none cursor-pointer transition-colors"
+                  title={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                  aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+              disabled={isSubmitting}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
-              <span>Masuk ke Sistem</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Memverifikasi Akun...</span>
+                </>
+              ) : (
+                <>
+                  <span>Masuk ke Sistem</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
 
             <Link
@@ -116,7 +159,7 @@ export const LoginPage: React.FC = () => {
               className="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 border border-slate-600/60 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <UserPlus className="w-4 h-4 text-blue-400" />
-              <span>Belum punya akun? Daftar Akun Baru</span>
+              <span>Belum punya akun? Daftar Aku Baru</span>
             </Link>
           </form>
         </div>

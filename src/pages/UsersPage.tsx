@@ -3,7 +3,7 @@ import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLE_META } from '../constants/roles';
 import { User, RoleId } from '../types';
-import { Users, UserPlus, RefreshCw, X, CheckCircle2, ShieldCheck, Mail, Building, Briefcase, Search } from 'lucide-react';
+import { Users, UserPlus, RefreshCw, X, CheckCircle2, ShieldCheck, Mail, Building, Briefcase, Search, Eye, EyeOff } from 'lucide-react';
 
 export const UsersPage: React.FC = () => {
   const { users, units, saveUser, syncToFirebase, addToast } = useApp();
@@ -12,6 +12,7 @@ export const UsersPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     nama: '',
@@ -300,13 +301,23 @@ export const UsersPage: React.FC = () => {
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-700 block">Password Akun Baru (Opsional)</label>
-                <input
-                  type="password"
-                  placeholder="Kosongkan untuk gunakan NIP sebagai password default"
-                  value={formData.password}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Kosongkan untuk gunakan NIP sebagai password default"
+                    value={formData.password}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                    className="w-full pl-3 pr-10 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    title={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1">

@@ -19,7 +19,7 @@ interface RegisterData {
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
-  login: (nipOrEmail: string, password?: string) => { success: boolean; message?: string };
+  login: (nipOrEmail: string, password?: string) => Promise<{ success: boolean; message?: string }>;
   register: (userData: RegisterData) => Promise<{ success: boolean; message?: string }>;
   loginAsUser: (userId: string) => void;
   switchRole: (roleId: RoleId) => void;
@@ -52,14 +52,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  const login = (nipOrEmail: string, password?: string): { success: boolean; message?: string } => {
+  const login = async (nipOrEmail: string, password?: string): Promise<{ success: boolean; message?: string }> => {
     const cleanInput = nipOrEmail.trim().toLowerCase();
-    const allUsers = dataService.getUsers();
     
-    // Find user by NIP or Email
-    const targetUser = allUsers.find(
-      (u) => u.nip.toLowerCase() === cleanInput || u.email.toLowerCase() === cleanInput
-    );
+    // Find user by NIP or Email with live Firestore fallback
+    const targetUser = await dataService.findUserForAuth(cleanInput);
 
     if (!targetUser) {
       return {
@@ -75,24 +72,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    // Password check
-    if (targetUser.password && targetUser.password.length > 0) {
-      // User has explicitly created/saved a password
-      if (!password || password !== targetUser.password) {
+    // Password validation
+    const enteredPassword = (password || '').trim();
+    const storedPassword = (targetUser.password || '').trim();
+
+    if (storedPassword.length > 0) {
+      // User has a specific password saved during registration
+      if (!enteredPassword || enteredPassword !== storedPassword) {
         return {
           success: false,
-          message: 'Password yang Anda masukkan salah. Silakan coba lagi.',
+          message: 'Password yang Anda masukkan salah. Silakan periksa kembali password Anda.',
         };
       }
-    } else if (password && password.length > 0) {
+    } else if (enteredPassword.length > 0) {
       // Legacy demo users fallback check
-      const validDefaults = ['password', '123456', 'admin123', targetUser.nip];
-      if (!validDefaults.includes(password)) {
+      const validDefaults = ['password', '123456', 'admin123', targetUser.nip.toLowerCase(), targetUser.nip];
+      if (!validDefaults.includes(enteredPassword.toLowerCase()) && enteredPassword !== targetUser.nip) {
         return {
           success: false,
           message: 'Password yang Anda masukkan salah.',
         };
       }
+    } else {
+      return {
+        success: false,
+        message: 'Silakan masukkan password akun Anda.',
+      };
     }
 
     setCurrentUser(targetUser);

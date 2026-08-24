@@ -22,6 +22,9 @@ import {
   doc,
   setDoc,
   getDocs,
+  getDoc,
+  query,
+  where,
   onSnapshot,
   writeBatch,
 } from 'firebase/firestore';
@@ -318,10 +321,23 @@ export class DataService {
           saveToStorage(STORAGE_KEYS.UNITS, this.units);
           hasChanges = true;
         }
-        if (JSON.stringify(this.users) !== JSON.stringify(users)) {
-          this.users = users || [];
-          saveToStorage(STORAGE_KEYS.USERS, this.users);
-          hasChanges = true;
+        if (users && Array.isArray(users) && users.length > 0) {
+          const userMap = new Map<string, User>();
+          this.users.forEach((u) => userMap.set(u.id, u));
+          users.forEach((u: User) => {
+            const existing = userMap.get(u.id);
+            userMap.set(u.id, {
+              ...existing,
+              ...u,
+              password: u.password || existing?.password,
+            });
+          });
+          const mergedUsers = Array.from(userMap.values());
+          if (JSON.stringify(this.users) !== JSON.stringify(mergedUsers)) {
+            this.users = mergedUsers;
+            saveToStorage(STORAGE_KEYS.USERS, this.users);
+            hasChanges = true;
+          }
         }
         if (JSON.stringify(this.notifications) !== JSON.stringify(notifications)) {
           this.notifications = notifications || [];
@@ -360,6 +376,52 @@ export class DataService {
 
   public getUsers(): User[] {
     return [...this.users];
+  }
+
+  /**
+   * Look up a user for authentication with fallback to live Firestore
+   */
+  public async findUserForAuth(nipOrEmail: string): Promise<User | null> {
+    const cleanInput = nipOrEmail.trim().toLowerCase();
+    if (!cleanInput) return null;
+
+    // 1. Look in memory first
+    let matchedUser = this.users.find(
+      (u) => u.nip.toLowerCase() === cleanInput || u.email.toLowerCase() === cleanInput
+    );
+
+    // 2. Query Firestore directly to ensure we have the latest user record and saved password
+    try {
+      const usersCol = collection(db, 'users');
+      const snap = await getDocs(usersCol);
+      if (!snap.empty) {
+        let firestoreUser: User | null = null;
+        snap.forEach((d) => {
+          const u = d.data() as User;
+          if (
+            u.nip?.toLowerCase() === cleanInput ||
+            u.email?.toLowerCase() === cleanInput
+          ) {
+            firestoreUser = u;
+          }
+        });
+
+        if (firestoreUser) {
+          matchedUser = firestoreUser;
+          // Merge/update local list and storage
+          const userMap = new Map<string, User>();
+          this.users.forEach((u) => userMap.set(u.id, u));
+          userMap.set((firestoreUser as User).id, firestoreUser as User);
+          this.users = Array.from(userMap.values());
+          saveToStorage(STORAGE_KEYS.USERS, this.users);
+          this.notify();
+        }
+      }
+    } catch (err) {
+      console.warn('Firestore user fetch during authentication error:', err);
+    }
+
+    return matchedUser || null;
   }
 
   public getNotifications(userId?: string): AppNotification[] {
