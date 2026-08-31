@@ -38,6 +38,7 @@ export const LOCKING_STATUSES = [
   'DISETUJUI_KOORDINATOR',
   'MENUNGGU_PERSETUJUAN_KABAG',
   'DISETUJUI',
+  'CHECKED_IN',
 ];
 
 export function getTodayDateString(): string {

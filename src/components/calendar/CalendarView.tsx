@@ -11,18 +11,24 @@ import {
   Clock,
   User as UserIcon,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export const CalendarView: React.FC = () => {
   const { bookings, rooms } = useApp();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
-  const [selectedRoomId, setSelectedRoomId] = useState<string>('ALL');
+  const [selectedRoomId, setSelectedRoomId] = useState<string>(() => {
+    const roomParam = searchParams.get('room');
+    return roomParam || 'ALL';
+  });
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date()); // Realtime today date default
 
-  // Filter bookings by selected room
+  // Filter bookings by selected room: strictly EXCLUDE cancelled ('DIBATALKAN') and rejected ('DITOLAK_...') bookings
   const filteredBookings = bookings.filter((b) => {
+    if (b.status === 'DIBATALKAN') return false;
+    if (b.status.startsWith('DITOLAK')) return false;
     if (selectedRoomId !== 'ALL' && b.room_id !== selectedRoomId) return false;
     return true;
   });
@@ -118,7 +124,15 @@ export const CalendarView: React.FC = () => {
             <Filter className="w-3.5 h-3.5 text-slate-500" />
             <select
               value={selectedRoomId}
-              onChange={(e) => setSelectedRoomId(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedRoomId(val);
+                if (val !== 'ALL') {
+                  setSearchParams({ room: val });
+                } else {
+                  setSearchParams({});
+                }
+              }}
               className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none"
             >
               <option value="ALL">Semua Ruang Rapat</option>
@@ -248,47 +262,59 @@ export const CalendarView: React.FC = () => {
       {/* WEEK OR DAY VIEW LIST */}
       {(viewMode === 'week' || viewMode === 'day') && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">
-            Agenda Kegiatan Terjadwal ({filteredBookings.length})
-          </h3>
-
-          <div className="space-y-3">
-            {filteredBookings.map((b) => (
-              <div
-                key={b.id}
-                onClick={() => navigate(`/bookings/${b.id}`)}
-                className="p-4 rounded-xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-xs cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-blue-700">
-                      {b.nomor_peminjaman}
-                    </span>
-                    <StatusBadge status={b.status} size="sm" />
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900">{b.keperluan}</h4>
-                  <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400" /> {b.room_nama}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" /> {b.tanggal} (
-                      {b.jam_mulai} - {b.jam_selesai} WIB)
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <UserIcon className="w-3.5 h-3.5 text-slate-400" /> {b.peminjam_nama}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <span className="inline-block px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 rounded-xl hover:bg-blue-100">
-                    Lihat Detail →
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900">
+              Agenda Kegiatan Terjadwal ({filteredBookings.length})
+            </h3>
+            <span className="text-[11px] text-slate-500 font-medium">
+              *Pengajuan yang dibatalkan/dihapus otomatis dibebaskan dari jadwal
+            </span>
           </div>
+
+          {filteredBookings.length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200/60 text-slate-500 space-y-1.5">
+              <p className="text-xs font-bold text-slate-700">Tidak Ada Jadwal Rapat Aktif</p>
+              <p className="text-[11px]">Ruangan pada periode ini dalam status kosong dan siap dipinjam.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredBookings.map((b) => (
+                <div
+                  key={b.id}
+                  onClick={() => navigate(`/bookings/${b.id}`)}
+                  className="p-4 rounded-xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-xs cursor-pointer transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-blue-700">
+                        {b.nomor_peminjaman}
+                      </span>
+                      <StatusBadge status={b.status} size="sm" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900">{b.keperluan}</h4>
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400" /> {b.room_nama}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" /> {b.tanggal} (
+                        {b.jam_mulai} - {b.jam_selesai} WIB)
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <UserIcon className="w-3.5 h-3.5 text-slate-400" /> {b.peminjam_nama}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <span className="inline-block px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 rounded-xl hover:bg-blue-100">
+                      Lihat Detail →
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

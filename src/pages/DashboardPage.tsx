@@ -17,9 +17,10 @@ import {
   ChevronRight,
   ShieldCheck,
   CalendarDays,
+  Ban,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatIndonesianDate } from '../utils/bookingUtils';
+import { formatIndonesianDate, getTodayDateString } from '../utils/bookingUtils';
 
 export const DashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -29,9 +30,12 @@ export const DashboardPage: React.FC = () => {
   if (!currentUser) return null;
 
   const role = currentUser.role_id;
+  const todayStr = getTodayDateString();
 
-  // Filter bookings for peminjam
-  const myBookings = bookings.filter((b) => b.user_id === currentUser.id);
+  // Filter bookings for current user's own submissions
+  const myBookings = bookings.filter(
+    (b) => b.user_id === currentUser.id || (Boolean(currentUser.nip) && b.peminjam_nip === currentUser.nip)
+  );
 
   // Stats calculation based on user role
   const totalSubmissions = role === 'peminjam' ? myBookings.length : bookings.length;
@@ -59,9 +63,9 @@ export const DashboardPage: React.FC = () => {
     return b.status.startsWith('MENUNGGU');
   });
 
-  // Upcoming nearest approved booking
+  // Upcoming nearest approved active booking (today or in future, not cancelled)
   const upcomingBooking = (role === 'peminjam' ? myBookings : bookings).find(
-    (b) => b.status === 'DISETUJUI'
+    (b) => (b.status === 'DISETUJUI' || b.status === 'CHECKED_IN') && b.tanggal >= todayStr
   );
 
   return (
@@ -82,9 +86,17 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {(role === 'kabag_umum' || role === 'admin') && (
+            <button
+              onClick={() => navigate('/cancellations')}
+              className="px-4 py-2.5 bg-amber-600/90 hover:bg-amber-600 text-white text-xs font-bold rounded-lg border border-amber-500/50 shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+            >
+              <Ban className="w-4 h-4" /> Pembatalan Pengajuan
+            </button>
+          )}
           <button
             onClick={() => navigate('/bookings/new')}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm shadow-blue-900/50 transition-colors flex items-center gap-2"
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm shadow-blue-900/50 transition-colors flex items-center gap-2 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" /> Ajukan Peminjaman Baru
           </button>
@@ -221,28 +233,48 @@ export const DashboardPage: React.FC = () => {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col space-y-3">
               <h3 className="text-sm font-bold text-slate-800">Status Ruangan Hari Ini</h3>
               <div className="space-y-2.5">
-                {rooms.map((r) => (
-                  <div
-                    key={r.id}
-                    className="p-3 border border-gray-100 rounded-lg flex items-center justify-between gap-2 bg-gray-50/50"
-                  >
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-700">{r.nama_ruang}</h4>
-                      <p className="text-[10px] text-slate-500">
-                        Kapasitas {r.kapasitas} orang • Lantai {r.lantai}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        r.status === 'Aktif'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : 'bg-amber-50 text-amber-600'
-                      }`}
+                {rooms.map((r) => {
+                  const todayActiveBookings = bookings.filter(
+                    (b) =>
+                      b.room_id === r.id &&
+                      b.tanggal === todayStr &&
+                      (b.status === 'DISETUJUI' || b.status === 'CHECKED_IN')
+                  );
+
+                  return (
+                    <div
+                      key={r.id}
+                      className="p-3 border border-gray-100 rounded-lg flex items-center justify-between gap-2 bg-gray-50/50"
                     >
-                      {r.status === 'Aktif' ? 'TERSEDIA' : r.status.toUpperCase()}
-                    </span>
-                  </div>
-                ))}
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-700">{r.nama_ruang}</h4>
+                        <p className="text-[10px] text-slate-500">
+                          Kapasitas {r.kapasitas} orang • Lantai {r.lantai}
+                          {todayActiveBookings.length > 0 && (
+                            <span className="text-blue-600 font-semibold block">
+                              • {todayActiveBookings.length} Rapat: {todayActiveBookings[0].jam_mulai} - {todayActiveBookings[0].jam_selesai} WIB
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          r.status !== 'Aktif'
+                            ? 'bg-amber-50 text-amber-600'
+                            : todayActiveBookings.length > 0
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-emerald-50 text-emerald-600'
+                        }`}
+                      >
+                        {r.status !== 'Aktif'
+                          ? r.status.toUpperCase()
+                          : todayActiveBookings.length > 0
+                          ? 'DIPAKAI'
+                          : 'TERSEDIA'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

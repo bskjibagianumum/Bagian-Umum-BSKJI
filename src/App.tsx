@@ -12,6 +12,7 @@ import { BookingsListPage } from './pages/BookingsListPage';
 import { BookingDetailPage } from './pages/BookingDetailPage';
 import { BuktiPeminjamanPage } from './pages/BuktiPeminjamanPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
+import { ApprovedCancellationsPage } from './pages/ApprovedCancellationsPage';
 import { RoomsPage } from './pages/RoomsPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -78,6 +79,14 @@ export function App() {
               element={
                 <MainLayout>
                   <ApprovalsPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/cancellations"
+              element={
+                <MainLayout>
+                  <ApprovedCancellationsPage />
                 </MainLayout>
               }
             />

@@ -21,6 +21,7 @@ import {
   collection,
   doc,
   setDoc,
+  deleteDoc,
   getDocs,
   getDoc,
   query,
@@ -701,8 +702,12 @@ export class DataService {
 
     const oldBooking = this.bookings[bookingIndex];
     if (oldBooking.status === 'DISETUJUI') {
-      throw new Error('Pengajuan yang telah disetujui akhir tidak dapat dibatalkan secara langsung.');
+      if (user.role_id !== 'kabag_umum' && user.role_id !== 'admin') {
+        throw new Error('Pengajuan yang telah disetujui akhir hanya dapat dibatalkan oleh Kepala Bagian Umum atau Administrator.');
+      }
     }
+
+    const isKabagCancellingApproved = oldBooking.status === 'DISETUJUI';
 
     const updatedBooking: Booking = {
       ...oldBooking,
@@ -718,7 +723,9 @@ export class DataService {
       user_id: user.id,
       user_nama: user.nama,
       role: user.role_id,
-      aktivitas: 'Membatalkan Pengajuan Peminjaman',
+      aktivitas: isKabagCancellingApproved
+        ? 'Membatalkan Pengajuan Disetujui (Diskresi Kabag Umum)'
+        : 'Membatalkan Pengajuan Peminjaman',
       booking_id: bookingId,
       nomor_peminjaman: oldBooking.nomor_peminjaman,
       data_lama: `Status: ${oldBooking.status}`,
@@ -727,17 +734,34 @@ export class DataService {
       ip_address: '10.14.22.100',
     });
 
-    const koordinators = this.users.filter((u) => u.role_id === 'koordinator');
-    koordinators.forEach((k) => {
+    // Notify requester if cancelled by Kabag / Admin or someone else
+    if (oldBooking.user_id !== user.id) {
       this.addNotification({
-        id: `notif_${Date.now()}_${k.id}`,
-        user_id: k.id,
+        id: `notif_${Date.now()}_req`,
+        user_id: oldBooking.user_id,
         booking_id: bookingId,
-        judul: 'Peminjaman Dibatalkan',
-        pesan: `${user.nama} membatalkan peminjaman ${oldBooking.nomor_peminjaman} (${oldBooking.room_nama}). Alasan: ${alasan}`,
+        judul: 'Peminjaman Ruang Dibatalkan oleh Kabag Umum',
+        pesan: `Pengajuan peminjaman ruangan ${oldBooking.nomor_peminjaman} (${oldBooking.room_nama}) pada tanggal ${oldBooking.tanggal} telah dibatalkan oleh ${user.nama} (${user.jabatan}). Alasan: ${alasan}`,
         status_baca: false,
         created_at: new Date().toISOString(),
       });
+    }
+
+    const koordinators = this.users.filter((u) => u.role_id === 'koordinator');
+    koordinators.forEach((k) => {
+      if (k.id !== user.id) {
+        this.addNotification({
+          id: `notif_${Date.now()}_${k.id}`,
+          user_id: k.id,
+          booking_id: bookingId,
+          judul: isKabagCancellingApproved
+            ? 'Pembatalan Pengajuan Disetujui oleh Kabag Umum'
+            : 'Peminjaman Dibatalkan',
+          pesan: `${user.nama} membatalkan peminjaman ${oldBooking.nomor_peminjaman} (${oldBooking.room_nama}). Alasan: ${alasan}`,
+          status_baca: false,
+          created_at: new Date().toISOString(),
+        });
+      }
     });
 
     this.notify();
@@ -763,6 +787,85 @@ export class DataService {
         }
       })
       .catch((err) => console.error('Error cancelling booking on server:', err));
+  }
+
+  public deleteBooking(bookingId: string, user: User, alasan?: string): void {
+    const bookingIndex = this.bookings.findIndex((b) => b.id === bookingId);
+    if (bookingIndex === -1) return;
+
+    if (user.role_id !== 'kabag_umum' && user.role_id !== 'admin') {
+      throw new Error('Penghapusan pengajuan hanya dapat dilakukan oleh Kepala Bagian Umum atau Administrator.');
+    }
+
+    const oldBooking = this.bookings[bookingIndex];
+    this.bookings.splice(bookingIndex, 1);
+    saveToStorage(STORAGE_KEYS.BOOKINGS, this.bookings);
+
+    this.addAuditLog({
+      id: `aud_${Date.now()}`,
+      user_id: user.id,
+      user_nama: user.nama,
+      role: user.role_id,
+      aktivitas: 'Menghapus Pengajuan Peminjaman',
+      booking_id: bookingId,
+      nomor_peminjaman: oldBooking.nomor_peminjaman,
+      data_lama: `Nomor: ${oldBooking.nomor_peminjaman}, Status: ${oldBooking.status}, Ruang: ${oldBooking.room_nama}, Tanggal: ${oldBooking.tanggal}`,
+      data_baru: `DIHAPUS PERMANEN, Alasan: ${alasan || 'Dihapus oleh Kepala Bagian Umum'}`,
+      timestamp: new Date().toISOString(),
+      ip_address: '10.14.22.100',
+    });
+
+    // Notify requester
+    if (oldBooking.user_id !== user.id) {
+      this.addNotification({
+        id: `notif_${Date.now()}_req_del`,
+        user_id: oldBooking.user_id,
+        booking_id: '',
+        judul: 'Data Pengajuan Peminjaman Dihapus',
+        pesan: `Pengajuan peminjaman nomor ${oldBooking.nomor_peminjaman} (${oldBooking.room_nama}) telah dihapus dari sistem oleh ${user.nama} (${user.jabatan}). Alasan: ${alasan || 'Penghapusan data peminjaman oleh pimpinan.'}`,
+        status_baca: false,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    const koordinators = this.users.filter((u) => u.role_id === 'koordinator');
+    koordinators.forEach((k) => {
+      if (k.id !== user.id) {
+        this.addNotification({
+          id: `notif_${Date.now()}_koor_del_${k.id}`,
+          user_id: k.id,
+          booking_id: '',
+          judul: 'Data Pengajuan Peminjaman Dihapus',
+          pesan: `Pengajuan ${oldBooking.nomor_peminjaman} (${oldBooking.room_nama}) telah dihapus dari sistem oleh ${user.nama}. Alasan: ${alasan || 'Penghapusan oleh Kabag Umum.'}`,
+          status_baca: false,
+          created_at: new Date().toISOString(),
+        });
+      }
+    });
+
+    this.notify();
+
+    // Firestore delete
+    try {
+      deleteDoc(doc(db, 'bookings', bookingId)).catch((err) =>
+        console.warn('Firestore delete booking error:', err)
+      );
+    } catch (e) {
+      console.warn('Firestore delete error:', e);
+    }
+
+    fetch(`/api/bookings/${bookingId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user, alasan }),
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data) {
+          this.syncFromPayload(json.data);
+        }
+      })
+      .catch((err) => console.error('Error deleting booking on server:', err));
   }
 
   public checkInBooking(bookingId: string, user: User): void {

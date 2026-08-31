@@ -42,8 +42,19 @@ export const ApprovalsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="px-3.5 py-1.5 bg-blue-50 text-blue-900 text-xs font-bold rounded-xl border border-blue-200 flex items-center gap-1.5 shrink-0">
-          <ShieldCheck className="w-4 h-4 text-blue-600" /> Role Aktif: {currentUser.jabatan}
+        <div className="flex items-center gap-2">
+          {(role === 'kabag_umum' || role === 'admin') && (
+            <button
+              onClick={() => navigate('/cancellations')}
+              className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold rounded-xl border border-amber-200 transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Pembatalan Pengajuan Disetujui →</span>
+            </button>
+          )}
+
+          <div className="px-3.5 py-1.5 bg-blue-50 text-blue-900 text-xs font-bold rounded-xl border border-blue-200 flex items-center gap-1.5 shrink-0">
+            <ShieldCheck className="w-4 h-4 text-blue-600" /> Role Aktif: {currentUser.jabatan}
+          </div>
         </div>
       </div>
 

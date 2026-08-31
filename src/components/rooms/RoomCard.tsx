@@ -1,11 +1,12 @@
 import React from 'react';
 import { Room } from '../../types';
-import { Building2, Users, MapPin, Edit3, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Building2, Users, MapPin, Edit3, ShieldAlert, CheckCircle2, Calendar } from 'lucide-react';
 
 interface RoomCardProps {
   room: Room;
   onEdit?: (room: Room) => void;
   onBook?: (room: Room) => void;
+  onViewSchedule?: (room: Room) => void;
   canManage?: boolean;
 }
 
@@ -13,6 +14,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   room,
   onEdit,
   onBook,
+  onViewSchedule,
   canManage = false,
 }) => {
   const statusColors = {
@@ -87,24 +89,37 @@ export const RoomCard: React.FC<RoomCardProps> = ({
       </div>
 
       {/* Footer Actions */}
-      <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
-        {canManage && onEdit && (
-          <button
-            type="button"
-            onClick={() => onEdit(room)}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5"
-          >
-            <Edit3 className="w-3.5 h-3.5" /> Edit Ruang
-          </button>
-        )}
+      <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {canManage && onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(room)}
+              className="px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" /> Edit
+            </button>
+          )}
+
+          {onViewSchedule && (
+            <button
+              type="button"
+              onClick={() => onViewSchedule(room)}
+              className="px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Lihat Jadwal Ruangan Ini"
+            >
+              <Calendar className="w-3.5 h-3.5 text-blue-600" /> Jadwal
+            </button>
+          )}
+        </div>
 
         {onBook && room.status === 'Aktif' && (
           <button
             type="button"
             onClick={() => onBook(room)}
-            className="flex-1 py-2 px-4 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs text-center"
+            className="flex-1 py-2 px-3.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs text-center cursor-pointer"
           >
-            Pinjam Ruangan Ini →
+            Pinjam Ruang →
           </button>
         )}
       </div>

@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   ChevronRight,
   LogOut,
+  Ban,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -97,6 +98,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: CheckSquare,
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
       roles: ['koordinator', 'kabag_umum', 'admin'],
+    },
+    {
+      label: 'Pembatalan Pengajuan',
+      path: '/cancellations',
+      icon: Ban,
+      roles: ['kabag_umum', 'admin'],
     },
     {
       label: 'Data Ruang',

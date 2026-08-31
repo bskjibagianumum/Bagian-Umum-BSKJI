@@ -6,17 +6,17 @@ import { EmptyState } from '../components/common/EmptyState';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import {
   Search,
-  Filter,
-  FileText,
-  Calendar,
-  Building2,
-  ChevronRight,
   PlusCircle,
   XCircle,
-  Printer,
+  UserCheck,
+  Building2,
+  Calendar,
+  Clock,
+  Layers,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatIndonesianDate } from '../utils/bookingUtils';
+import { Booking } from '../types';
 
 export const BookingsListPage: React.FC = () => {
   const { bookings, rooms, cancelBooking } = useApp();
@@ -26,15 +26,30 @@ export const BookingsListPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedRoom, setSelectedRoom] = useState<string>('ALL');
+  const [scopeFilter, setScopeFilter] = useState<'MY' | 'ALL'>('MY');
   const [cancelModalBookingId, setCancelModalBookingId] = useState<string | null>(null);
 
   if (!currentUser) return null;
 
+  const isAdmin = currentUser.role_id === 'admin';
+
+  const isOwnBooking = (b: Booking) => {
+    if (b.user_id === currentUser.id) return true;
+    if (currentUser.nip && b.peminjam_nip === currentUser.nip) return true;
+    return false;
+  };
+
+  // Count for badge counters
+  const myTotalCount = bookings.filter(isOwnBooking).length;
+  const allTotalCount = bookings.length;
+
   // Filter bookings
   const filteredBookings = bookings.filter((b) => {
-    // Role peminjam strictly only sees their own bookings
-    if (currentUser.role_id === 'peminjam' && b.user_id !== currentUser.id) {
-      return false;
+    // For non-admin (peminjam, koordinator, kabag_umum), strictly only see own bookings
+    if (!isAdmin || scopeFilter === 'MY') {
+      if (!isOwnBooking(b)) {
+        return false;
+      }
     }
 
     const matchesSearch =
@@ -56,22 +71,57 @@ export const BookingsListPage: React.FC = () => {
       {/* Header */}
       <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-black text-slate-900 tracking-tight">
-            Daftar Pengajuan Peminjaman Ruang Rapat
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {currentUser.role_id === 'peminjam'
-              ? 'Daftar seluruh riwayat pengajuan peminjaman Anda di lingkungan Sekretariat BSKJI.'
-              : 'Daftar seluruh riwayat pengajuan peminjaman di lingkungan Sekretariat BSKJI.'}
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-black text-slate-900 tracking-tight">
+              {isAdmin && scopeFilter === 'ALL'
+                ? 'Daftar Seluruh Pengajuan Peminjaman'
+                : 'Pengajuan Saya'}
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              {filteredBookings.length} Pengajuan
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            {isAdmin && scopeFilter === 'ALL'
+              ? 'Daftar seluruh riwayat pengajuan peminjaman di lingkungan Sekretariat BSKJI (Mode Administrator).'
+              : `Daftar seluruh riwayat pengajuan peminjaman ruang rapat yang diajukan oleh akun Anda (${currentUser.nama}).`}
           </p>
         </div>
         <button
           onClick={() => navigate('/bookings/new')}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
+          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
         >
           <PlusCircle className="w-4 h-4" /> Ajukan Peminjaman Baru
         </button>
       </div>
+
+      {/* Admin Scope Selector Tabs (Only visible for Administrator) */}
+      {isAdmin && (
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200 w-fit">
+          <button
+            onClick={() => setScopeFilter('MY')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              scopeFilter === 'MY'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Pengajuan Saya ({myTotalCount})</span>
+          </button>
+          <button
+            onClick={() => setScopeFilter('ALL')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              scopeFilter === 'ALL'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Semua Pengajuan Sistem ({allTotalCount})</span>
+          </button>
+        </div>
+      )}
 
       {/* Filters Bar */}
       <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center gap-3">
@@ -79,7 +129,7 @@ export const BookingsListPage: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari nomor peminjaman, peminjam, atau keperluan..."
+            placeholder="Cari nomor peminjaman, keperluan rapat, atau ruangan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -91,7 +141,7 @@ export const BookingsListPage: React.FC = () => {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-700 focus:outline-none"
+            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-700 focus:outline-none cursor-pointer"
           >
             <option value="ALL">Semua Status</option>
             <option value="MENUNGGU_PERSETUJUAN_ATASAN">Menunggu Atasan</option>
@@ -109,7 +159,7 @@ export const BookingsListPage: React.FC = () => {
           <select
             value={selectedRoom}
             onChange={(e) => setSelectedRoom(e.target.value)}
-            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-700 focus:outline-none"
+            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-700 focus:outline-none cursor-pointer"
           >
             <option value="ALL">Semua Ruangan</option>
             {rooms.map((r) => (
@@ -125,8 +175,18 @@ export const BookingsListPage: React.FC = () => {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {filteredBookings.length === 0 ? (
           <EmptyState
-            title="Tidak Ada Pengajuan Ditemukan"
-            description="Tidak ada data peminjaman yang cocok dengan filter pencarian Anda."
+            title={
+              search || selectedStatus !== 'ALL' || selectedRoom !== 'ALL'
+                ? 'Tidak Ada Pengajuan yang Cocok'
+                : 'Belum Ada Pengajuan Peminjaman'
+            }
+            description={
+              search || selectedStatus !== 'ALL' || selectedRoom !== 'ALL'
+                ? 'Tidak ada data peminjaman yang cocok dengan kriteria filter pencarian Anda.'
+                : 'Anda belum memiliki riwayat pengajuan peminjaman ruangan. Silakan ajukan peminjaman baru jika memerlukan ruang rapat.'
+            }
+            actionLabel="Ajukan Peminjaman Baru"
+            onAction={() => navigate('/bookings/new')}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -142,55 +202,57 @@ export const BookingsListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredBookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-3.5">
-                      <span className="font-mono font-bold text-blue-700 block">
-                        {b.nomor_peminjaman}
-                      </span>
-                      <span className="font-bold text-slate-900">{b.peminjam_nama}</span>
-                      <span className="text-[10px] text-slate-400 block">{b.unit_nama}</span>
-                    </td>
-                    <td className="p-3.5 max-w-xs">
-                      <p className="font-bold text-slate-800 leading-snug line-clamp-2">
-                        {b.keperluan}
-                      </p>
-                      <span className="text-[10px] text-slate-500">
-                        {b.jumlah_peserta} Peserta
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-slate-700">
-                      <strong>{formatIndonesianDate(b.tanggal)}</strong>
-                      <span className="block text-[11px] font-mono text-slate-500">
-                        {b.jam_mulai} - {b.jam_selesai} WIB
-                      </span>
-                    </td>
-                    <td className="p-3.5 font-bold text-slate-800">{b.room_nama}</td>
-                    <td className="p-3.5">
-                      <StatusBadge status={b.status} size="sm" />
-                    </td>
-                    <td className="p-3.5 text-right space-x-2">
-                      <button
-                        onClick={() => navigate(`/bookings/${b.id}`)}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold rounded-lg transition-colors"
-                      >
-                        Detail →
-                      </button>
+                {filteredBookings.map((b) => {
+                  const isUserOwn = isOwnBooking(b);
+                  return (
+                    <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="p-3.5">
+                        <span className="font-mono font-bold text-blue-700 block">
+                          {b.nomor_peminjaman}
+                        </span>
+                        <span className="font-bold text-slate-900">{b.peminjam_nama}</span>
+                        <span className="text-[10px] text-slate-400 block">{b.unit_nama}</span>
+                      </td>
+                      <td className="p-3.5 max-w-xs">
+                        <p className="font-bold text-slate-800 leading-snug line-clamp-2">
+                          {b.keperluan}
+                        </p>
+                        <span className="text-[10px] text-slate-500">
+                          {b.jumlah_peserta} Peserta
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-slate-700">
+                        <strong>{formatIndonesianDate(b.tanggal)}</strong>
+                        <span className="block text-[11px] font-mono text-slate-500">
+                          {b.jam_mulai} - {b.jam_selesai} WIB
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-bold text-slate-800">{b.room_nama}</td>
+                      <td className="p-3.5">
+                        <StatusBadge status={b.status} size="sm" />
+                      </td>
+                      <td className="p-3.5 text-right space-x-2">
+                        <button
+                          onClick={() => navigate(`/bookings/${b.id}`)}
+                          className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold rounded-lg transition-colors cursor-pointer"
+                        >
+                          Detail →
+                        </button>
 
-                      {/* Cancel option for creator if still pending */}
-                      {b.user_id === currentUser.id &&
-                        b.status.startsWith('MENUNGGU') && (
+                        {/* Cancel option for creator if still pending */}
+                        {isUserOwn && b.status.startsWith('MENUNGGU') && (
                           <button
                             onClick={() => setCancelModalBookingId(b.id)}
-                            className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 font-bold rounded-lg transition-colors"
+                            className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 font-bold rounded-lg transition-colors cursor-pointer"
                             title="Batalkan Pengajuan"
                           >
                             <XCircle className="w-4 h-4 inline" />
                           </button>
                         )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

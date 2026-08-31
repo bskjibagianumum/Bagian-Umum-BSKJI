@@ -55,6 +55,7 @@ interface AppContextType {
   approveBooking: (bookingId: string, catatan: string, level: 'KOORDINATOR' | 'KABAG') => void;
   rejectBooking: (bookingId: string, catatan: string, level: 'KOORDINATOR' | 'KABAG') => void;
   cancelBooking: (bookingId: string, alasan: string) => void;
+  deleteBooking: (bookingId: string, alasan?: string) => void;
   checkInBooking: (bookingId: string) => void;
   checkOutBooking: (bookingId: string) => void;
   saveRoom: (room: Room) => void;
@@ -241,6 +242,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const deleteBooking = (bookingId: string, alasan?: string) => {
+    try {
+      dataService.deleteBooking(bookingId, currentUser, alasan);
+      addToast('info', 'Pengajuan Dihapus', 'Data pengajuan peminjaman telah berhasil dihapus dari sistem.');
+    } catch (e: any) {
+      addToast('error', 'Gagal Menghapus', e.message);
+    }
+  };
+
   const checkInBooking = (bookingId: string) => {
     try {
       dataService.checkInBooking(bookingId, currentUser);
@@ -327,6 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveBooking,
         rejectBooking,
         cancelBooking,
+        deleteBooking,
         checkInBooking,
         checkOutBooking,
         saveRoom,

@@ -96,6 +96,7 @@ export const RoomsPage: React.FC = () => {
             canManage={canManage}
             onEdit={handleEditRoom}
             onBook={() => navigate('/bookings/new')}
+            onViewSchedule={(r) => navigate(`/calendar?room=${r.id}`)}
           />
         ))}
       </div>
