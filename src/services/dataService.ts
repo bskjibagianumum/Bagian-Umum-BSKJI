@@ -40,6 +40,34 @@ const STORAGE_KEYS = {
   AUDIT_LOGS: 'bskji_audit_logs_v5',
 };
 
+/**
+ * Recursively removes all keys with `undefined` values from an object/array,
+ * ensuring it is strictly valid for Firestore setDoc / updateDoc operations.
+ */
+export function cleanForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => cleanForFirestore(item)) as any;
+  }
+  if (typeof data === 'object') {
+    if (data instanceof Date) {
+      return data.toISOString() as any;
+    }
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleaned[key] = cleanForFirestore(value);
+      }
+    }
+    return cleaned as T;
+  }
+  return data;
+}
+
 // Generic storage loader with fallback to initial data
 function loadFromStorage<T>(key: string, initialData: T): T {
   try {
@@ -74,6 +102,16 @@ export class DataService {
   private listeners: (() => void)[] = [];
   private pollTimer: any = null;
   private isFirestoreInitialized = false;
+
+  private async safeSetDoc(colName: string, docId: string, data: any): Promise<void> {
+    try {
+      const cleaned = cleanForFirestore(data);
+      await setDoc(doc(db, colName, docId), cleaned);
+    } catch (err) {
+      console.warn(`Firestore setDoc error on ${colName}/${docId}:`, err);
+      throw err;
+    }
+  }
 
   private constructor() {
     this.bookings = loadFromStorage(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
@@ -190,11 +228,13 @@ export class DataService {
             this.users.forEach((u) => userMap.set(u.id, u));
             list.forEach((u) => {
               const existing = userMap.get(u.id);
-              userMap.set(u.id, {
+              const pwd = u.password || existing?.password || '123456';
+              const merged: User = {
                 ...existing,
                 ...u,
-                password: u.password || existing?.password,
-              });
+                password: pwd,
+              };
+              userMap.set(u.id, cleanForFirestore(merged));
             });
             this.users = Array.from(userMap.values());
             saveToStorage(STORAGE_KEYS.USERS, this.users);
@@ -264,27 +304,27 @@ export class DataService {
     try {
       // 1. Sync Bookings
       for (const b of this.bookings) {
-        await setDoc(doc(db, 'bookings', b.id), b);
+        await this.safeSetDoc('bookings', b.id, b);
       }
       // 2. Sync Rooms
       for (const r of this.rooms) {
-        await setDoc(doc(db, 'rooms', r.id), r);
+        await this.safeSetDoc('rooms', r.id, r);
       }
       // 3. Sync Units
       for (const u of this.units) {
-        await setDoc(doc(db, 'units', u.id), u);
+        await this.safeSetDoc('units', u.id, u);
       }
       // 4. Sync Users
       for (const usr of this.users) {
-        await setDoc(doc(db, 'users', usr.id), usr);
+        await this.safeSetDoc('users', usr.id, usr);
       }
       // 5. Sync Notifications
       for (const n of this.notifications) {
-        await setDoc(doc(db, 'notifications', n.id), n);
+        await this.safeSetDoc('notifications', n.id, n);
       }
       // 6. Sync Audit Logs
       for (const a of this.auditLogs) {
-        await setDoc(doc(db, 'auditLogs', a.id), a);
+        await this.safeSetDoc('auditLogs', a.id, a);
       }
 
       console.log('Semua data berhasil disinkronkan ke Firebase Firestore.');
@@ -469,7 +509,7 @@ export class DataService {
 
     // 2. Persist to Firestore
     try {
-      setDoc(doc(db, 'bookings', booking.id), updatedBooking)
+      this.safeSetDoc('bookings', booking.id, updatedBooking)
         .then(() => console.log(`Firestore booking ${booking.id} synced.`))
         .catch((err) => console.warn('Firestore setDoc booking error:', err));
     } catch (e) {
@@ -542,7 +582,7 @@ export class DataService {
 
     // 2. Persist to Firestore
     try {
-      setDoc(doc(db, 'bookings', booking.id), booking).catch((err) =>
+      this.safeSetDoc('bookings', booking.id, booking).catch((err) =>
         console.warn('Firestore setDoc booking error:', err)
       );
     } catch (e) {
@@ -674,7 +714,7 @@ export class DataService {
 
     // Firestore update
     try {
-      setDoc(doc(db, 'bookings', bookingId), updatedBooking).catch((err) =>
+      this.safeSetDoc('bookings', bookingId, updatedBooking).catch((err) =>
         console.warn('Firestore update booking error:', err)
       );
     } catch (e) {
@@ -768,7 +808,7 @@ export class DataService {
 
     // Firestore update
     try {
-      setDoc(doc(db, 'bookings', bookingId), updatedBooking).catch((err) =>
+      this.safeSetDoc('bookings', bookingId, updatedBooking).catch((err) =>
         console.warn('Firestore cancel booking error:', err)
       );
     } catch (e) {
@@ -898,7 +938,7 @@ export class DataService {
     this.notify();
 
     try {
-      setDoc(doc(db, 'bookings', bookingId), this.bookings[idx]).catch((err) =>
+      this.safeSetDoc('bookings', bookingId, this.bookings[idx]).catch((err) =>
         console.warn('Firestore checkIn error:', err)
       );
     } catch (e) {
@@ -950,7 +990,7 @@ export class DataService {
     this.notify();
 
     try {
-      setDoc(doc(db, 'bookings', bookingId), this.bookings[idx]).catch((err) =>
+      this.safeSetDoc('bookings', bookingId, this.bookings[idx]).catch((err) =>
         console.warn('Firestore checkOut error:', err)
       );
     } catch (e) {
@@ -994,7 +1034,7 @@ export class DataService {
     this.notify();
 
     try {
-      setDoc(doc(db, 'rooms', room.id), room).catch((err) =>
+      this.safeSetDoc('rooms', room.id, room).catch((err) =>
         console.warn('Firestore saveRoom error:', err)
       );
     } catch (e) {
@@ -1062,8 +1102,8 @@ export class DataService {
 
     // 1. Direct Persist to Firebase Firestore
     try {
-      await setDoc(doc(db, 'users', createdUser.id), createdUser);
-      await setDoc(doc(db, 'auditLogs', auditEntry.id), auditEntry);
+      await this.safeSetDoc('users', createdUser.id, createdUser);
+      await this.safeSetDoc('auditLogs', auditEntry.id, auditEntry);
       console.log('Akun pegawai baru berhasil disimpan ke Firestore:', createdUser.id);
     } catch (e) {
       console.warn('Firestore registerUser error:', e);
@@ -1095,7 +1135,7 @@ export class DataService {
     const existing = idx >= 0 ? this.users[idx] : null;
     const finalUser: User = {
       ...userObj,
-      password: userObj.password || existing?.password || undefined,
+      password: userObj.password || existing?.password || '123456',
     };
 
     if (idx >= 0) {
@@ -1119,8 +1159,8 @@ export class DataService {
     this.notify();
 
     try {
-      await setDoc(doc(db, 'users', finalUser.id), finalUser);
-      await setDoc(doc(db, 'auditLogs', auditEntry.id), auditEntry);
+      await this.safeSetDoc('users', finalUser.id, finalUser);
+      await this.safeSetDoc('auditLogs', auditEntry.id, auditEntry);
       console.log('User synced to Firestore:', finalUser.id);
     } catch (e) {
       console.warn('Firestore saveUser error:', e);
@@ -1163,7 +1203,7 @@ export class DataService {
     this.notify();
 
     try {
-      setDoc(doc(db, 'units', unitObj.id), unitObj).catch((err) =>
+      this.safeSetDoc('units', unitObj.id, unitObj).catch((err) =>
         console.warn('Firestore saveUnit error:', err)
       );
     } catch (e) {
@@ -1193,7 +1233,7 @@ export class DataService {
       this.notify();
 
       try {
-        setDoc(doc(db, 'notifications', notifId), this.notifications[idx]).catch((err) =>
+        this.safeSetDoc('notifications', notifId, this.notifications[idx]).catch((err) =>
           console.warn('Firestore markNotificationAsRead error:', err)
         );
       } catch (e) {
@@ -1215,7 +1255,7 @@ export class DataService {
       this.notifications
         .filter((n) => n.user_id === userId)
         .forEach((n) => {
-          setDoc(doc(db, 'notifications', n.id), n).catch(() => {});
+          this.safeSetDoc('notifications', n.id, n).catch(() => {});
         });
     } catch (e) {
       console.warn('Firestore markAllNotificationsAsRead error:', e);
@@ -1233,7 +1273,7 @@ export class DataService {
     saveToStorage(STORAGE_KEYS.NOTIFICATIONS, this.notifications);
 
     try {
-      setDoc(doc(db, 'notifications', notif.id), notif).catch((err) =>
+      this.safeSetDoc('notifications', notif.id, notif).catch((err) =>
         console.warn('Firestore addNotification error:', err)
       );
     } catch (e) {
@@ -1246,7 +1286,7 @@ export class DataService {
     saveToStorage(STORAGE_KEYS.AUDIT_LOGS, this.auditLogs);
 
     try {
-      setDoc(doc(db, 'auditLogs', log.id), log).catch((err) =>
+      this.safeSetDoc('auditLogs', log.id, log).catch((err) =>
         console.warn('Firestore addAuditLog error:', err)
       );
     } catch (e) {

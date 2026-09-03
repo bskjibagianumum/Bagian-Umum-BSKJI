@@ -159,7 +159,7 @@ export const LoginPage: React.FC = () => {
               className="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 border border-slate-600/60 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <UserPlus className="w-4 h-4 text-blue-400" />
-              <span>Belum punya akun? Daftar Aku Baru</span>
+              <span>Belum punya akun? Daftar Akun Baru</span>
             </Link>
           </form>
         </div>
