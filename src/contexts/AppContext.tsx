@@ -33,6 +33,7 @@ interface AppContextType {
   notifications: AppNotification[];
   auditLogs: AuditLog[];
   unreadNotificationCount: number;
+  isFirestoreQuotaExhausted: boolean;
 
   // Search
   searchQuery: string;
@@ -80,6 +81,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dataService.getNotifications(currentUser?.id)
   );
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => dataService.getAuditLogs());
+  const [isFirestoreQuotaExhausted, setIsFirestoreQuotaExhausted] = useState<boolean>(() =>
+    dataService.isFirestoreQuotaExhausted()
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -98,6 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUsers(dataService.getUsers());
       setNotifications(dataService.getNotifications(currentUser?.id));
       setAuditLogs(dataService.getAuditLogs());
+      setIsFirestoreQuotaExhausted(dataService.isFirestoreQuotaExhausted());
     });
     return unsubscribe;
   }, [currentUser, dataService]);
@@ -323,6 +328,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifications,
         auditLogs,
         unreadNotificationCount,
+        isFirestoreQuotaExhausted,
 
         searchQuery,
         setSearchQuery,

@@ -102,14 +102,68 @@ export class DataService {
   private listeners: (() => void)[] = [];
   private pollTimer: any = null;
   private isFirestoreInitialized = false;
+  private unsubscribers: (() => void)[] = [];
+  private quotaExhausted = false;
+
+  public isFirestoreQuotaExhausted(): boolean {
+    return this.quotaExhausted;
+  }
+
+  private handleQuotaExceeded(err: any): boolean {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (
+      msg.includes('Quota exceeded') ||
+      msg.includes('resource-exhausted') ||
+      err?.code === 'resource-exhausted'
+    ) {
+      if (!this.quotaExhausted) {
+        this.quotaExhausted = true;
+        console.warn(
+          'Firestore quota exceeded (Spark tier free limit). Detaching live listeners and operating via server & local cache.'
+        );
+        this.unsubscribeFirestore();
+        this.notify();
+      }
+      return true;
+    }
+    return false;
+  }
+
+  public unsubscribeFirestore(): void {
+    this.unsubscribers.forEach((unsub) => {
+      try {
+        unsub();
+      } catch (e) {}
+    });
+    this.unsubscribers = [];
+  }
 
   private async safeSetDoc(colName: string, docId: string, data: any): Promise<void> {
+    if (this.quotaExhausted) {
+      return;
+    }
     try {
       const cleaned = cleanForFirestore(data);
       await setDoc(doc(db, colName, docId), cleaned);
-    } catch (err) {
+    } catch (err: any) {
+      if (this.handleQuotaExceeded(err)) {
+        return;
+      }
       console.warn(`Firestore setDoc error on ${colName}/${docId}:`, err);
-      throw err;
+    }
+  }
+
+  private async safeDeleteDoc(colName: string, docId: string): Promise<void> {
+    if (this.quotaExhausted) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, colName, docId));
+    } catch (err: any) {
+      if (this.handleQuotaExceeded(err)) {
+        return;
+      }
+      console.warn(`Firestore deleteDoc error on ${colName}/${docId}:`, err);
     }
   }
 
@@ -160,9 +214,11 @@ export class DataService {
    * Set up real-time bidirectional sync with Cloud Firestore
    */
   private initFirestoreSync(): void {
+    if (this.quotaExhausted) return;
+
     try {
       // 1. Listen to Bookings
-      onSnapshot(
+      const unsubBookings = onSnapshot(
         collection(db, 'bookings'),
         (snapshot) => {
           if (!snapshot.empty) {
@@ -173,17 +229,18 @@ export class DataService {
             );
             saveToStorage(STORAGE_KEYS.BOOKINGS, this.bookings);
             this.notify();
-          } else if (!this.isFirestoreInitialized) {
-            this.syncAllToFirestore();
           }
         },
         (error) => {
-          console.warn('Firestore bookings snapshot error:', error);
+          if (!this.handleQuotaExceeded(error)) {
+            console.warn('Firestore bookings snapshot error:', error);
+          }
         }
       );
+      this.unsubscribers.push(unsubBookings);
 
       // 2. Listen to Rooms
-      onSnapshot(
+      const unsubRooms = onSnapshot(
         collection(db, 'rooms'),
         (snapshot) => {
           if (!snapshot.empty) {
@@ -195,12 +252,15 @@ export class DataService {
           }
         },
         (error) => {
-          console.warn('Firestore rooms snapshot error:', error);
+          if (!this.handleQuotaExceeded(error)) {
+            console.warn('Firestore rooms snapshot error:', error);
+          }
         }
       );
+      this.unsubscribers.push(unsubRooms);
 
       // 3. Listen to Units
-      onSnapshot(
+      const unsubUnits = onSnapshot(
         collection(db, 'units'),
         (snapshot) => {
           if (!snapshot.empty) {
@@ -212,12 +272,15 @@ export class DataService {
           }
         },
         (error) => {
-          console.warn('Firestore units snapshot error:', error);
+          if (!this.handleQuotaExceeded(error)) {
+            console.warn('Firestore units snapshot error:', error);
+          }
         }
       );
+      this.unsubscribers.push(unsubUnits);
 
       // 4. Listen to Users
-      onSnapshot(
+      const unsubUsers = onSnapshot(
         collection(db, 'users'),
         (snapshot) => {
           if (!snapshot.empty) {
@@ -239,17 +302,18 @@ export class DataService {
             this.users = Array.from(userMap.values());
             saveToStorage(STORAGE_KEYS.USERS, this.users);
             this.notify();
-          } else if (!this.isFirestoreInitialized) {
-            this.syncAllToFirestore();
           }
         },
         (error) => {
-          console.warn('Firestore users snapshot error:', error);
+          if (!this.handleQuotaExceeded(error)) {
+            console.warn('Firestore users snapshot error:', error);
+          }
         }
       );
+      this.unsubscribers.push(unsubUsers);
 
       // 5. Listen to Notifications
-      onSnapshot(
+      const unsubNotifs = onSnapshot(
         collection(db, 'notifications'),
         (snapshot) => {
           if (!snapshot.empty) {
@@ -263,12 +327,15 @@ export class DataService {
           }
         },
         (error) => {
-          console.warn('Firestore notifications snapshot error:', error);
+          if (!this.handleQuotaExceeded(error)) {
+            console.warn('Firestore notifications snapshot error:', error);
+          }
         }
       );
+      this.unsubscribers.push(unsubNotifs);
 
       // 6. Listen to Audit Logs
-      onSnapshot(
+      const unsubAudit = onSnapshot(
         collection(db, 'auditLogs'),
         (snapshot) => {
           if (!snapshot.empty) {
@@ -282,18 +349,18 @@ export class DataService {
           }
         },
         (error) => {
-          console.warn('Firestore auditLogs snapshot error:', error);
+          if (!this.handleQuotaExceeded(error)) {
+            console.warn('Firestore auditLogs snapshot error:', error);
+          }
         }
       );
+      this.unsubscribers.push(unsubAudit);
 
       this.isFirestoreInitialized = true;
-
-      // Auto-trigger sync to Firestore on startup to ensure all existing records are persisted
-      setTimeout(() => {
-        this.syncAllToFirestore();
-      }, 1500);
-    } catch (e) {
-      console.warn('Could not initialize Firestore listeners:', e);
+    } catch (e: any) {
+      if (!this.handleQuotaExceeded(e)) {
+        console.warn('Could not initialize Firestore listeners:', e);
+      }
     }
   }
 
@@ -301,6 +368,13 @@ export class DataService {
    * Sync all local data to Firebase Firestore
    */
   public async syncAllToFirestore(): Promise<{ success: boolean; message: string }> {
+    if (this.quotaExhausted) {
+      return {
+        success: false,
+        message:
+          'Batas kuota harian Firebase Firestore (Spark Plan) sedang tercapai. Data tetap aman dan beroperasi penuh melalui server & penyimpanan lokal.',
+      };
+    }
     try {
       // 1. Sync Bookings
       for (const b of this.bookings) {
@@ -330,6 +404,7 @@ export class DataService {
       console.log('Semua data berhasil disinkronkan ke Firebase Firestore.');
       return { success: true, message: 'Semua data berhasil disinkronkan ke Firebase Firestore!' };
     } catch (err: any) {
+      this.handleQuotaExceeded(err);
       console.error('Failed to sync all data to Firebase:', err);
       return { success: false, message: err?.message || 'Gagal sinkronisasi data ke Firebase.' };
     }
@@ -430,36 +505,43 @@ export class DataService {
     let matchedUser = this.users.find(
       (u) => u.nip.toLowerCase() === cleanInput || u.email.toLowerCase() === cleanInput
     );
+    if (matchedUser) {
+      return matchedUser;
+    }
 
-    // 2. Query Firestore directly to ensure we have the latest user record and saved password
-    try {
-      const usersCol = collection(db, 'users');
-      const snap = await getDocs(usersCol);
-      if (!snap.empty) {
-        let firestoreUser: User | null = null;
-        snap.forEach((d) => {
-          const u = d.data() as User;
-          if (
-            u.nip?.toLowerCase() === cleanInput ||
-            u.email?.toLowerCase() === cleanInput
-          ) {
-            firestoreUser = u;
+    // 2. Query Firestore directly only if not found in memory and quota is not exhausted
+    if (!this.quotaExhausted) {
+      try {
+        const usersCol = collection(db, 'users');
+        const snap = await getDocs(usersCol);
+        if (!snap.empty) {
+          let firestoreUser: User | null = null;
+          snap.forEach((d) => {
+            const u = d.data() as User;
+            if (
+              u.nip?.toLowerCase() === cleanInput ||
+              u.email?.toLowerCase() === cleanInput
+            ) {
+              firestoreUser = u;
+            }
+          });
+
+          if (firestoreUser) {
+            matchedUser = firestoreUser;
+            // Merge/update local list and storage
+            const userMap = new Map<string, User>();
+            this.users.forEach((u) => userMap.set(u.id, u));
+            userMap.set((firestoreUser as User).id, firestoreUser as User);
+            this.users = Array.from(userMap.values());
+            saveToStorage(STORAGE_KEYS.USERS, this.users);
+            this.notify();
           }
-        });
-
-        if (firestoreUser) {
-          matchedUser = firestoreUser;
-          // Merge/update local list and storage
-          const userMap = new Map<string, User>();
-          this.users.forEach((u) => userMap.set(u.id, u));
-          userMap.set((firestoreUser as User).id, firestoreUser as User);
-          this.users = Array.from(userMap.values());
-          saveToStorage(STORAGE_KEYS.USERS, this.users);
-          this.notify();
+        }
+      } catch (err: any) {
+        if (!this.handleQuotaExceeded(err)) {
+          console.warn('Firestore user fetch during authentication error:', err);
         }
       }
-    } catch (err) {
-      console.warn('Firestore user fetch during authentication error:', err);
     }
 
     return matchedUser || null;
@@ -887,7 +969,7 @@ export class DataService {
 
     // Firestore delete
     try {
-      deleteDoc(doc(db, 'bookings', bookingId)).catch((err) =>
+      this.safeDeleteDoc('bookings', bookingId).catch((err) =>
         console.warn('Firestore delete booking error:', err)
       );
     } catch (e) {

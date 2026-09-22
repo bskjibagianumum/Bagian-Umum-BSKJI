@@ -26,6 +26,11 @@ export async function testConnection() {
     if (error instanceof Error) {
       if (error.message.includes('the client is offline')) {
         console.warn('Firebase Firestore is offline or initializing. Local cache fallback active.');
+      } else if (
+        error.message.includes('Quota exceeded') ||
+        error.message.includes('resource-exhausted')
+      ) {
+        console.warn('Firebase Firestore quota exceeded. Operating seamlessly via server and local cache.');
       } else {
         console.warn('Firebase Firestore test connection notice:', error.message);
       }
