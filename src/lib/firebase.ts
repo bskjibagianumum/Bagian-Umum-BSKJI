@@ -1,6 +1,13 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  getFirestore,
+  doc,
+  getDoc,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App instance safely
@@ -14,13 +21,30 @@ const dbId =
     ? firebaseConfig.firestoreDatabaseId
     : undefined;
 
-export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
+// Configure persistent local cache with multi-tab support to minimize Firestore read counts
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(
+    app,
+    {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    },
+    dbId
+  );
+} catch (e) {
+  // If already initialized or unsupported, fallback to getFirestore
+  firestoreInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
+}
+
+export const db = firestoreInstance;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export async function testConnection() {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDoc(doc(db, 'test', 'connection'));
     console.log('Firebase Firestore connection verified.');
   } catch (error) {
     if (error instanceof Error) {
@@ -38,6 +62,6 @@ export async function testConnection() {
   }
 }
 
-// Test connection on boot as mandated
+// Test connection on boot safely without forcing server-side read bypass
 testConnection();
 

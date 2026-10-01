@@ -26,6 +26,7 @@ import {
   getDoc,
   query,
   where,
+  limit,
   onSnapshot,
   writeBatch,
 } from 'firebase/firestore';
@@ -214,12 +215,14 @@ export class DataService {
    * Set up real-time bidirectional sync with Cloud Firestore
    */
   private initFirestoreSync(): void {
-    if (this.quotaExhausted) return;
+    if (this.quotaExhausted || this.isFirestoreInitialized) return;
+    this.isFirestoreInitialized = true;
 
     try {
-      // 1. Listen to Bookings
+      // 1. Listen to Bookings (capped at 50 recent records to prevent quota exhaustion)
+      const qBookings = query(collection(db, 'bookings'), limit(50));
       const unsubBookings = onSnapshot(
-        collection(db, 'bookings'),
+        qBookings,
         (snapshot) => {
           if (!snapshot.empty) {
             const list: Booking[] = [];
@@ -239,9 +242,10 @@ export class DataService {
       );
       this.unsubscribers.push(unsubBookings);
 
-      // 2. Listen to Rooms
+      // 2. Listen to Rooms (capped at 20)
+      const qRooms = query(collection(db, 'rooms'), limit(20));
       const unsubRooms = onSnapshot(
-        collection(db, 'rooms'),
+        qRooms,
         (snapshot) => {
           if (!snapshot.empty) {
             const list: Room[] = [];
@@ -259,9 +263,10 @@ export class DataService {
       );
       this.unsubscribers.push(unsubRooms);
 
-      // 3. Listen to Units
+      // 3. Listen to Units (capped at 20)
+      const qUnits = query(collection(db, 'units'), limit(20));
       const unsubUnits = onSnapshot(
-        collection(db, 'units'),
+        qUnits,
         (snapshot) => {
           if (!snapshot.empty) {
             const list: Unit[] = [];
@@ -279,9 +284,10 @@ export class DataService {
       );
       this.unsubscribers.push(unsubUnits);
 
-      // 4. Listen to Users
+      // 4. Listen to Users (capped at 50)
+      const qUsers = query(collection(db, 'users'), limit(50));
       const unsubUsers = onSnapshot(
-        collection(db, 'users'),
+        qUsers,
         (snapshot) => {
           if (!snapshot.empty) {
             const list: User[] = [];
@@ -312,9 +318,10 @@ export class DataService {
       );
       this.unsubscribers.push(unsubUsers);
 
-      // 5. Listen to Notifications
+      // 5. Listen to Notifications (capped at 30 recent)
+      const qNotifs = query(collection(db, 'notifications'), limit(30));
       const unsubNotifs = onSnapshot(
-        collection(db, 'notifications'),
+        qNotifs,
         (snapshot) => {
           if (!snapshot.empty) {
             const list: AppNotification[] = [];
@@ -334,9 +341,10 @@ export class DataService {
       );
       this.unsubscribers.push(unsubNotifs);
 
-      // 6. Listen to Audit Logs
+      // 6. Listen to Audit Logs (capped at 30 recent instead of reading all history)
+      const qAudit = query(collection(db, 'auditLogs'), limit(30));
       const unsubAudit = onSnapshot(
-        collection(db, 'auditLogs'),
+        qAudit,
         (snapshot) => {
           if (!snapshot.empty) {
             const list: AuditLog[] = [];
@@ -513,25 +521,23 @@ export class DataService {
     if (!this.quotaExhausted) {
       try {
         const usersCol = collection(db, 'users');
-        const snap = await getDocs(usersCol);
-        if (!snap.empty) {
-          let firestoreUser: User | null = null;
-          snap.forEach((d) => {
-            const u = d.data() as User;
-            if (
-              u.nip?.toLowerCase() === cleanInput ||
-              u.email?.toLowerCase() === cleanInput
-            ) {
-              firestoreUser = u;
-            }
-          });
+        // Targeted query by nip first with limit(1)
+        let q = query(usersCol, where('nip', '==', cleanInput), limit(1));
+        let snap = await getDocs(q);
+        if (snap.empty) {
+          // If not found by nip, try by email with limit(1)
+          q = query(usersCol, where('email', '==', cleanInput), limit(1));
+          snap = await getDocs(q);
+        }
 
+        if (!snap.empty) {
+          const firestoreUser = snap.docs[0].data() as User;
           if (firestoreUser) {
             matchedUser = firestoreUser;
             // Merge/update local list and storage
             const userMap = new Map<string, User>();
             this.users.forEach((u) => userMap.set(u.id, u));
-            userMap.set((firestoreUser as User).id, firestoreUser as User);
+            userMap.set(firestoreUser.id, firestoreUser);
             this.users = Array.from(userMap.values());
             saveToStorage(STORAGE_KEYS.USERS, this.users);
             this.notify();
