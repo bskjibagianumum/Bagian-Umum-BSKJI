@@ -288,14 +288,16 @@ export class DataService {
       );
       this.unsubscribers.push(unsubUnits);
 
-      // 4. Listen to Users (capped at 50)
-      const qUsers = query(collection(db, 'users'), limit(50));
+      // 4. Listen to Users (all registered users)
       const unsubUsers = onSnapshot(
-        qUsers,
+        collection(db, 'users'),
         (snapshot) => {
           if (!snapshot.empty) {
             const list: User[] = [];
-            snapshot.forEach((d) => list.push(d.data() as User));
+            snapshot.forEach((d) => {
+              const u = d.data() as User;
+              list.push({ ...u, id: u.id || d.id });
+            });
             // Merge Firestore records with local users so no newly created user is lost
             const userMap = new Map<string, User>();
             this.users.forEach((u) => userMap.set(u.id, u));
@@ -481,7 +483,7 @@ export class DataService {
             });
           });
           const mergedUsers = Array.from(userMap.values());
-          if (JSON.stringify(this.users) !== JSON.stringify(mergedUsers)) {
+          if (this.users.length !== mergedUsers.length || JSON.stringify(this.users) !== JSON.stringify(mergedUsers)) {
             this.users = mergedUsers;
             saveToStorage(STORAGE_KEYS.USERS, this.users);
             hasChanges = true;
