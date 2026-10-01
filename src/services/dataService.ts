@@ -219,16 +219,20 @@ export class DataService {
     this.isFirestoreInitialized = true;
 
     try {
-      // 1. Listen to Bookings (capped at 50 recent records to prevent quota exhaustion)
-      const qBookings = query(collection(db, 'bookings'), limit(50));
+      // 1. Listen to Bookings (synchronize bookings with safe merge to preserve all records)
       const unsubBookings = onSnapshot(
-        qBookings,
+        collection(db, 'bookings'),
         (snapshot) => {
           if (!snapshot.empty) {
-            const list: Booking[] = [];
-            snapshot.forEach((d) => list.push(d.data() as Booking));
-            this.bookings = list.sort(
-              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            const bookingMap = new Map<string, Booking>();
+            // Keep all existing bookings so no September or October bookings are lost
+            this.bookings.forEach((b) => bookingMap.set(b.id, b));
+            snapshot.forEach((d) => {
+              const data = d.data() as Booking;
+              bookingMap.set(d.id, { ...data, id: d.id });
+            });
+            this.bookings = Array.from(bookingMap.values()).sort(
+              (a, b) => new Date(b.created_at || b.tanggal).getTime() - new Date(a.created_at || a.tanggal).getTime()
             );
             saveToStorage(STORAGE_KEYS.BOOKINGS, this.bookings);
             this.notify();
@@ -430,20 +434,40 @@ export class DataService {
         const { bookings, rooms, units, users, notifications, auditLogs } = json.data;
 
         let hasChanges = false;
-        if (JSON.stringify(this.bookings) !== JSON.stringify(bookings)) {
-          this.bookings = bookings || [];
-          saveToStorage(STORAGE_KEYS.BOOKINGS, this.bookings);
-          hasChanges = true;
+        if (bookings && Array.isArray(bookings) && bookings.length > 0) {
+          const bookingMap = new Map<string, Booking>();
+          this.bookings.forEach((b) => bookingMap.set(b.id, b));
+          bookings.forEach((b: Booking) => bookingMap.set(b.id, b));
+          const mergedBookings = Array.from(bookingMap.values()).sort(
+            (a, b) => new Date(b.created_at || b.tanggal).getTime() - new Date(a.created_at || a.tanggal).getTime()
+          );
+          if (this.bookings.length !== mergedBookings.length || JSON.stringify(this.bookings) !== JSON.stringify(mergedBookings)) {
+            this.bookings = mergedBookings;
+            saveToStorage(STORAGE_KEYS.BOOKINGS, this.bookings);
+            hasChanges = true;
+          }
         }
-        if (JSON.stringify(this.rooms) !== JSON.stringify(rooms)) {
-          this.rooms = rooms || [];
-          saveToStorage(STORAGE_KEYS.ROOMS, this.rooms);
-          hasChanges = true;
+        if (rooms && Array.isArray(rooms) && rooms.length > 0) {
+          const roomMap = new Map<string, Room>();
+          this.rooms.forEach((r) => roomMap.set(r.id, r));
+          rooms.forEach((r: Room) => roomMap.set(r.id, r));
+          const mergedRooms = Array.from(roomMap.values());
+          if (this.rooms.length !== mergedRooms.length || JSON.stringify(this.rooms) !== JSON.stringify(mergedRooms)) {
+            this.rooms = mergedRooms;
+            saveToStorage(STORAGE_KEYS.ROOMS, this.rooms);
+            hasChanges = true;
+          }
         }
-        if (JSON.stringify(this.units) !== JSON.stringify(units)) {
-          this.units = units || [];
-          saveToStorage(STORAGE_KEYS.UNITS, this.units);
-          hasChanges = true;
+        if (units && Array.isArray(units) && units.length > 0) {
+          const unitMap = new Map<string, Unit>();
+          this.units.forEach((u) => unitMap.set(u.id, u));
+          units.forEach((u: Unit) => unitMap.set(u.id, u));
+          const mergedUnits = Array.from(unitMap.values());
+          if (this.units.length !== mergedUnits.length || JSON.stringify(this.units) !== JSON.stringify(mergedUnits)) {
+            this.units = mergedUnits;
+            saveToStorage(STORAGE_KEYS.UNITS, this.units);
+            hasChanges = true;
+          }
         }
         if (users && Array.isArray(users) && users.length > 0) {
           const userMap = new Map<string, User>();
